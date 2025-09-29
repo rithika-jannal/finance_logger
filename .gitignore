@@ -1,0 +1,12 @@
+# Node.js
+node_modules/
+npm-debug.log
+
+# Python / Backend
+__pycache__/
+*.pyc
+venv/
+.env
+
+# Others
+.DS_Store
