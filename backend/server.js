@@ -117,6 +117,22 @@ app.put('/api/expense/:id', auth, async (req, res) => {
   res.json(exp || {});
 });
 
+// ✅ Delete Expense
+app.delete('/api/expense/:id', auth, async (req, res) => {
+  try {
+    let exp = await Expense.findOneAndDelete({
+      _id: req.params.id,
+      user: req.user._id
+    });
+    if (!exp) {
+      return res.status(404).json({ message: 'Expense not found' });
+    }
+    res.json({ message: 'Expense deleted successfully' });
+  } catch (e) {
+    res.status(500).json({ message: 'Error deleting expense' });
+  }
+});
+
 // ✅ Daily Summary (for charts)
 app.get('/api/expense/summary/daily', auth, async (req, res) => {
   const today = new Date();
