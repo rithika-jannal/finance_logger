@@ -85,14 +85,29 @@ app.post('/api/register', async (req, res) => {
 });
 
 // ✅ User Login
+// ✅ User Login
 app.post('/api/login', async (req, res) => {
   let user = await User.findOne({ email: req.body.email });
   if (!user || !user.matchPassword(req.body.password)) {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
-  let token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
-  res.json({ token });
+
+  let token = jwt.sign(
+    { id: user._id },
+    process.env.JWT_SECRET || 'secret',
+    { expiresIn: '1d' }
+  );
+
+  res.json({
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email
+    }
+  });
 });
+
 
 // ✅ Add Expense
 app.post('/api/expense', auth, async (req, res) => {
@@ -160,6 +175,74 @@ app.get('/api/expense/summary/daily', auth, async (req, res) => {
   });
 
   res.json(dailyTotals);
+});
+
+// ✅ Get User Profile
+app.get('/api/profile', auth, async (req, res) => {
+  try {
+    res.json({
+      id: req.user._id,
+      name: req.user.name,
+      email: req.user.email
+    });
+  } catch (e) {
+    res.status(500).json({ message: 'Error fetching profile' });
+  }
+});
+
+// ✅ Update User Profile (except password)
+app.put('/api/profile', auth, async (req, res) => {
+  try {
+    const { name, email } = req.body;
+
+    // Prevent duplicate emails
+    if (email && email !== req.user.email) {
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(400).json({ message: 'Email already taken' });
+      }
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { name: name || req.user.name, email: email || req.user.email },
+      { new: true }
+    );
+
+    res.json({
+      id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email
+    });
+  } catch (e) {
+    res.status(500).json({ message: 'Error updating profile' });
+  }
+});
+
+// ✅ Change Password
+app.put('/api/profile/password', auth, async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    // Check old password
+    if (!req.user.matchPassword(oldPassword)) {
+      return res.status(400).json({ message: 'Old password is incorrect' });
+    }
+
+    // Update password (bcrypt will hash because of pre('save'))
+    req.user.password = newPassword;
+    await req.user.save();
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (e) {
+    res.status(500).json({ message: 'Error updating password' });
+  }
+});
+
+
+// ✅ Root route: Redirect to frontend login
+app.get('/', (req, res) => {
+  res.redirect('http://localhost:3000/login');
 });
 
 // ✅ Start Server

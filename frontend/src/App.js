@@ -23,6 +23,7 @@ function PrivateRoute({ children }) {
 function Register() {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const nav = useNavigate();
 
   const submit = async e => {
@@ -45,34 +46,36 @@ function Register() {
         <form onSubmit={submit}>
           <div className="form-group">
             <label>Full Name</label>
-            <input 
-              onChange={e => setForm({ ...form, name: e.target.value })} 
-              placeholder="Enter your name" 
-              required 
-            />
+            <input onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Enter your name" required />
           </div>
           <div className="form-group">
             <label>Email Address</label>
-            <input 
-              type="email" 
-              onChange={e => setForm({ ...form, email: e.target.value })} 
-              placeholder="Enter your email" 
-              required 
-            />
+            <input type="email" onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Enter your email" required />
           </div>
           <div className="form-group">
             <label>Password</label>
-            <input 
-              type="password" 
-              onChange={e => setForm({ ...form, password: e.target.value })} 
-              placeholder="Create a password" 
-              required 
-            />
+            <div className="password-wrapper">
+              <input
+                type={showPassword ? "text" : "password"}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                placeholder="Create a password"
+                required
+              />
+              <button
+                type="button"
+                className="toggle-password"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? "�" : "�👁️"}
+              </button>
+            </div>
           </div>
+
           <button className="btn-primary">Create Account</button>
           {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
           <div className="divider">Already have an account?</div>
-          <button type="button" className="btn-secondary" onClick={() => nav("/login")}>
+          <button type="button" className="btn-secondary" onClick={() => nav("/login")}> 
             Sign In
           </button>
         </form>
@@ -85,6 +88,7 @@ function Register() {
 function Login() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const nav = useNavigate();
 
   const submit = async e => {
@@ -108,28 +112,33 @@ function Login() {
         <form onSubmit={submit}>
           <div className="form-group">
             <label>Email Address</label>
-            <input
-              name="email"
-              type="email"
-              onChange={e => setForm({ ...form, email: e.target.value })}
-              placeholder="Enter your email"
-              required
-            />
+            <input name="email" type="email" onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Enter your email" required />
           </div>
           <div className="form-group">
             <label>Password</label>
-            <input
-              name="password"
-              type="password"
-              onChange={e => setForm({ ...form, password: e.target.value })}
-              placeholder="Enter your password"
-              required
-            />
+            <div className="password-wrapper">
+              <input
+                name="password"
+                type={showPassword ? "text" : "password"}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                placeholder="Enter your password"
+                required
+              />
+              <button
+                type="button"
+                className="toggle-password"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
           </div>
+
           <button type="submit" className="btn-primary">Sign In</button>
           {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
           <div className="divider">Don't have an account?</div>
-          <button type="button" className="btn-secondary" onClick={() => nav("/register")}>
+          <button type="button" className="btn-secondary" onClick={() => nav("/register")}> 
             Create Account
           </button>
         </form>
@@ -178,33 +187,10 @@ function Dashboard() {
     }
   };
 
-  const startEdit = exp => {
-    setEdit(exp._id);
-    setEditForm({description:exp.description, amount:exp.amount});
-  };
-  
-  const saveEdit = async e => {
-    e.preventDefault();
-    await api.put(`/expense/${edit}`, editForm);
-    setEdit(null); 
-    setMessage({ text: "✅ Expense updated!", type: "success" });
-    setTimeout(() => setMessage({ text: "", type: "" }), 3000);
-    fetchAll();
-  };
-
-  const deleteExp = async id => {
-    if(window.confirm("Are you sure you want to delete this expense?")) {
-      await api.delete(`/expense/${id}`);
-      setMessage({ text: "✅ Expense deleted", type: "success" });
-      setTimeout(() => setMessage({ text: "", type: "" }), 3000);
-      fetchAll();
-    }
-  };
-
-  const logout = () => {
-    localStorage.removeItem("token");
-    nav("/login");
-  };
+  const startEdit = exp => { setEdit(exp._id); setEditForm({description:exp.description, amount:exp.amount}); };
+  const saveEdit = async e => { e.preventDefault(); await api.put(`/expense/${edit}`, editForm); setEdit(null); setMessage({ text: "✅ Expense updated!", type: "success" }); setTimeout(() => setMessage({ text: "", type: "" }), 3000); fetchAll(); };
+  const deleteExp = async id => { if(window.confirm("Are you sure?")) { await api.delete(`/expense/${id}`); setMessage({ text: "✅ Expense deleted", type: "success" }); setTimeout(() => setMessage({ text: "", type: "" }), 3000); fetchAll(); } };
+  const logout = () => { localStorage.removeItem("token"); nav("/login"); };
 
   const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
 
@@ -218,6 +204,7 @@ function Dashboard() {
           </div>
           <div style={{display: "flex", gap: "10px"}}>
             <button className="btn-nav" onClick={() => nav("/logs")}>View Logs</button>
+            <button className="btn-nav" onClick={() => nav("/profile")}>Profile</button>
             <button className="btn-logout" onClick={logout}>Logout</button>
           </div>
         </div>
@@ -226,25 +213,9 @@ function Dashboard() {
           <h3>Add New Expense</h3>
           <form onSubmit={submit}>
             <div className="form-row">
-              <input 
-                onChange={e=>setForm({...form,description:e.target.value})} 
-                value={form.description} 
-                placeholder="Description (e.g., Groceries)" 
-                required 
-              />
-              <input 
-                type="number" 
-                onChange={e=>setForm({...form,amount:+e.target.value})} 
-                value={form.amount} 
-                placeholder="Amount (₹)" 
-                required 
-              />
-              <input 
-                type="date" 
-                onChange={e=>setForm({...form,date:e.target.value})} 
-                value={form.date} 
-                required 
-              />
+              <input onChange={e=>setForm({...form,description:e.target.value})} value={form.description} placeholder="Description (e.g., Groceries)" required />
+              <input type="number" onChange={e=>setForm({...form,amount:+e.target.value})} value={form.amount} placeholder="Amount (₹)" required />
+              <input type="date" onChange={e=>setForm({...form,date:e.target.value})} value={form.date} required />
               <button className="btn-add">Add Expense</button>
             </div>
           </form>
@@ -274,80 +245,7 @@ function Dashboard() {
                   pointHoverBorderWidth: 3
                 }]
               }}
-              options={{
-                responsive: true,
-                interaction: {
-                  mode: 'index',
-                  intersect: false,
-                },
-                plugins: {
-                  legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                      font: {
-                        size: 14,
-                        weight: 'bold'
-                      },
-                      color: '#333'
-                    }
-                  },
-                  tooltip: {
-                    enabled: true,
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    titleColor: '#fff',
-                    bodyColor: '#fff',
-                    borderColor: '#667eea',
-                    borderWidth: 2,
-                    padding: 12,
-                    displayColors: true,
-                    callbacks: {
-                      label: function(context) {
-                        return 'Spent: ₹' + context.parsed.y.toFixed(2);
-                      },
-                      title: function(context) {
-                        const date = new Date(context[0].label);
-                        return date.toLocaleDateString('en-IN', { 
-                          weekday: 'short', 
-                          year: 'numeric', 
-                          month: 'short', 
-                          day: 'numeric' 
-                        });
-                      }
-                    }
-                  }
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    ticks: {
-                      callback: function(value) {
-                        return '₹' + value;
-                      },
-                      font: {
-                        size: 12
-                      }
-                    },
-                    grid: {
-                      color: 'rgba(0, 0, 0, 0.05)'
-                    }
-                  },
-                  x: {
-                    ticks: {
-                      font: {
-                        size: 12
-                      }
-                    },
-                    grid: {
-                      display: false
-                    }
-                  }
-                },
-                animation: {
-                  duration: 1000,
-                  easing: 'easeInOutQuart'
-                }
-              }}
+              options={{ responsive: true, interaction: { mode: 'index', intersect: false } }}
             />
           </div>
         )}
@@ -370,54 +268,16 @@ function Logs() {
     try {
       let { data } = await api.get("/expense");
       setExpenses(data);
-    } catch {
-      setMessage({ text: "⚠️ Failed to fetch expenses", type: "error" });
-    }
+    } catch { setMessage({ text: "⚠️ Failed to fetch expenses", type: "error" }); }
   };
 
   useEffect(() => { fetchAll(); }, []);
 
-  const startEdit = exp => {
-    setEdit(exp._id);
-    setEditForm({
-      description: exp.description, 
-      amount: exp.amount,
-      date: new Date(exp.date).toISOString().split('T')[0]
-    });
-  };
+  const startEdit = exp => { setEdit(exp._id); setEditForm({ description: exp.description, amount: exp.amount, date: new Date(exp.date).toISOString().split('T')[0] }); };
+  const saveEdit = async e => { e.preventDefault(); await api.put(`/expense/${edit}`, editForm); setEdit(null); setMessage({ text: "✅ Expense updated!", type: "success" }); setTimeout(() => setMessage({ text: "", type: "" }), 3000); fetchAll(); };
+  const deleteExp = async id => { if(window.confirm("Are you sure you want to delete this expense?")) { await api.delete(`/expense/${id}`); setMessage({ text: "✅ Expense deleted", type: "success" }); setTimeout(() => setMessage({ text: "", type: "" }), 3000); fetchAll(); } };
+  const logout = () => { localStorage.removeItem("token"); nav("/login"); };
 
-  const saveEdit = async e => {
-    e.preventDefault();
-    try {
-      await api.put(`/expense/${edit}`, editForm);
-      setEdit(null);
-      setMessage({ text: "✅ Expense updated!", type: "success" });
-      setTimeout(() => setMessage({ text: "", type: "" }), 3000);
-      fetchAll();
-    } catch {
-      setMessage({ text: "❌ Error updating expense", type: "error" });
-    }
-  };
-
-  const deleteExp = async id => {
-    if(window.confirm("Are you sure you want to delete this expense?")) {
-      try {
-        await api.delete(`/expense/${id}`);
-        setMessage({ text: "✅ Expense deleted", type: "success" });
-        setTimeout(() => setMessage({ text: "", type: "" }), 3000);
-        fetchAll();
-      } catch {
-        setMessage({ text: "❌ Error deleting expense", type: "error" });
-      }
-    }
-  };
-
-  const logout = () => {
-    localStorage.removeItem("token");
-    nav("/login");
-  };
-
-  // Filter expenses
   const filteredExpenses = expenses.filter(exp => {
     const matchesSearch = exp.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesDate = filterDate ? new Date(exp.date).toISOString().split('T')[0] === filterDate : true;
@@ -436,44 +296,24 @@ function Logs() {
           </div>
           <div style={{display: "flex", gap: "10px"}}>
             <button className="btn-nav" onClick={() => nav("/dashboard")}>Dashboard</button>
+            <button className="btn-nav" onClick={() => nav("/profile")}>Profile</button>
             <button className="btn-logout" onClick={logout}>Logout</button>
           </div>
         </div>
 
-        {/* Filters */}
         <div className="filters-section">
-          <input 
-            type="text"
-            placeholder="🔍 Search by description..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="filter-input"
-          />
-          <input 
-            type="date"
-            value={filterDate}
-            onChange={e => setFilterDate(e.target.value)}
-            className="filter-input"
-          />
-          {(searchTerm || filterDate) && (
-            <button 
-              className="btn-clear-filter" 
-              onClick={() => {setSearchTerm(""); setFilterDate("");}}>
-              Clear Filters
-            </button>
-          )}
+          <input type="text" placeholder="🔍 Search by description..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="filter-input" />
+          <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} className="filter-input" />
+          {(searchTerm || filterDate) && <button className="btn-clear-filter" onClick={() => {setSearchTerm(""); setFilterDate("");}}>Clear Filters</button>}
         </div>
 
         {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
 
-        {/* Expenses List */}
         <div className="expenses-section">
           {filteredExpenses.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state-icon">📊</div>
-              <div className="empty-state-text">
-                {expenses.length === 0 ? "No expenses yet. Go to Dashboard to add expenses!" : "No expenses match your filters."}
-              </div>
+              <div className="empty-state-text">{expenses.length === 0 ? "No expenses yet. Go to Dashboard to add expenses!" : "No expenses match your filters."}</div>
             </div>
           ) : (
             <ul className="expense-list">
@@ -481,25 +321,9 @@ function Logs() {
                 <li key={exp._id} className="expense-item">
                   {edit === exp._id ? (
                     <form className="edit-form" onSubmit={saveEdit}>
-                      <input 
-                        value={editForm.description} 
-                        onChange={e=>setEditForm({...editForm,description:e.target.value})} 
-                        placeholder="Description"
-                        required 
-                      />
-                      <input 
-                        type="number" 
-                        value={editForm.amount} 
-                        onChange={e=>setEditForm({...editForm,amount:+e.target.value})} 
-                        placeholder="Amount"
-                        required 
-                      />
-                      <input 
-                        type="date" 
-                        value={editForm.date} 
-                        onChange={e=>setEditForm({...editForm,date:e.target.value})} 
-                        required 
-                      />
+                      <input value={editForm.description} onChange={e=>setEditForm({...editForm,description:e.target.value})} placeholder="Description" required />
+                      <input type="number" value={editForm.amount} onChange={e=>setEditForm({...editForm,amount:+e.target.value})} placeholder="Amount" required />
+                      <input type="date" value={editForm.date} onChange={e=>setEditForm({...editForm,date:e.target.value})} required />
                       <button type="submit" className="btn-save">Save</button>
                       <button type="button" className="btn-cancel" onClick={()=>setEdit(null)}>Cancel</button>
                     </form>
@@ -508,11 +332,7 @@ function Logs() {
                       <div className="expense-info">
                         <div className="expense-description">{exp.description}</div>
                         <div className="expense-amount">₹{exp.amount.toFixed(2)}</div>
-                        <div className="expense-date">{new Date(exp.date).toLocaleDateString('en-IN', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}</div>
+                        <div className="expense-date">{new Date(exp.date).toLocaleDateString('en-IN', { year:'numeric', month:'long', day:'numeric' })}</div>
                       </div>
                       <div className="expense-actions">
                         <button className="btn-edit" onClick={()=>startEdit(exp)}>Edit</button>
@@ -530,6 +350,126 @@ function Logs() {
   );
 }
 
+// ----------------- Profile -----------------
+function Profile() {
+  const [profile, setProfile] = useState({ name: "", email: "" });
+  const [passwords, setPasswords] = useState({ oldPassword: "", newPassword: "" });
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [message, setMessage] = useState({ text: "", type: "" });
+  const nav = useNavigate();
+
+  const fetchProfile = async () => {
+    try {
+      let { data } = await api.get("/profile");
+      setProfile({ name: data.name, email: data.email });
+    } catch {
+      setMessage({ text: "⚠️ Failed to fetch profile", type: "error" });
+    }
+  };
+
+  useEffect(() => { fetchProfile(); }, []);
+
+  const updateProfile = async e => {
+    e.preventDefault();
+    try {
+      const { data } = await api.put("/profile", profile);
+      setProfile({ name: data.name, email: data.email });
+      setMessage({ text: "✅ Profile updated successfully!", type: "success" });
+      setTimeout(() => setMessage({ text: "", type: "" }), 3000);
+    } catch (error) {
+      const msg = error.response?.data?.message || "Error updating profile";
+      setMessage({ text: "⚠️ " + msg, type: "error" });
+    }
+  };
+
+  const changePassword = async e => {
+    e.preventDefault();
+    try {
+      await api.put("/profile/password", passwords);
+      setMessage({ text: "✅ Password changed successfully!", type: "success" });
+      setPasswords({ oldPassword: "", newPassword: "" });
+      setTimeout(() => setMessage({ text: "", type: "" }), 3000);
+    } catch (error) {
+      const msg = error.response?.data?.message || "Error changing password";
+      setMessage({ text: "⚠️ " + msg, type: "error" });
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    nav("/login");
+  };
+
+  return (
+    <div className="container">
+      <div className="dashboard">
+        <div className="dashboard-header">
+          <h2>👤 My Profile</h2>
+          <div style={{display: "flex", gap: "10px"}}>
+            <button className="btn-nav" onClick={() => nav("/dashboard")}>Dashboard</button>
+            <button className="btn-logout" onClick={logout}>Logout</button>
+          </div>
+        </div>
+
+        {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
+
+        <div className="profile-section">
+          <form onSubmit={updateProfile} className="profile-form">
+            <h3>Update Info</h3>
+            <input placeholder="Name" value={profile.name} onChange={e => setProfile({ ...profile, name: e.target.value })} required />
+            <input type="email" placeholder="Email" value={profile.email} onChange={e => setProfile({ ...profile, email: e.target.value })} required />
+            <button className="btn-primary">Save Changes</button>
+          </form>
+
+          <form onSubmit={changePassword} className="profile-form">
+            <h3>Change Password</h3>
+            <div className="password-wrapper">
+              <input
+                type={showOldPassword ? "text" : "password"}
+                placeholder="Old Password"
+                value={passwords.oldPassword}
+                onChange={e => setPasswords({ ...passwords, oldPassword: e.target.value })}
+                required
+              />
+              <button
+                type="button"
+                className="toggle-password"
+                onClick={() => setShowOldPassword((prev) => !prev)}
+                aria-label={showOldPassword ? "Hide password" : "Show password"}
+              >
+                {showOldPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
+            <div className="password-wrapper">
+              <input
+                type={showNewPassword ? "text" : "password"}
+                placeholder="New Password"
+                value={passwords.newPassword}
+                onChange={e => setPasswords({ ...passwords, newPassword: e.target.value })}
+                required
+              />
+              <button
+                type="button"
+                className="toggle-password"
+                onClick={() => setShowNewPassword((prev) => !prev)}
+                aria-label={showNewPassword ? "Hide password" : "Show password"}
+              >
+                {showNewPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
+            <button className="btn-primary">Change Password</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+// ...existing code...
+
 // ----------------- App Root -----------------
 function App() {
   return (
@@ -539,6 +479,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/logs" element={<PrivateRoute><Logs /></PrivateRoute>} />
+        <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
         <Route path="/" element={<Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>

@@ -1,3 +1,4 @@
+/* ---------- Global Styles ---------- */
 * {
   margin: 0;
   padding: 0;
@@ -16,7 +17,7 @@ body {
   margin: 0 auto;
 }
 
-/* Auth Forms */
+/* ---------- Auth Forms ---------- */
 .auth-container {
   display: flex;
   justify-content: center;
@@ -36,14 +37,8 @@ body {
 }
 
 @keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(-30px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .auth-card h2 {
@@ -90,7 +85,36 @@ body {
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-.btn-primary {
+/* ---------- Password Field with Toggle ---------- */
+.password-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-wrapper input {
+  width: 100%;
+  padding-right: 42px; /* space for toggle button */
+}
+
+.toggle-password {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  color: #667eea;
+  padding: 4px;
+}
+
+.toggle-password:hover {
+  color: #5568d3;
+}
+
+/* ---------- Buttons ---------- */
+.btn-primary, .btn-add {
   width: 100%;
   padding: 14px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -104,7 +128,7 @@ body {
   margin-top: 10px;
 }
 
-.btn-primary:hover {
+.btn-primary:hover, .btn-add:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
 }
@@ -128,6 +152,7 @@ body {
   color: white;
 }
 
+/* ---------- Messages ---------- */
 .message {
   padding: 12px;
   border-radius: 8px;
@@ -161,8 +186,8 @@ body {
   font-size: 14px;
 }
 
-/* Dashboard */
-.dashboard {
+/* ---------- Dashboard / Logs / Profile Cards ---------- */
+.dashboard, .profile-section {
   background: white;
   border-radius: 20px;
   padding: 30px;
@@ -170,7 +195,7 @@ body {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
 }
 
-.dashboard-header {
+.dashboard-header, .profile-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -179,12 +204,13 @@ body {
   border-bottom: 2px solid #f0f0f0;
 }
 
-.dashboard-header h2 {
+.dashboard-header h2, .profile-header h2 {
   color: #667eea;
   font-size: 28px;
   font-weight: 700;
 }
 
+/* ---------- Logout / Nav Buttons ---------- */
 .btn-logout {
   padding: 10px 24px;
   background: white;
@@ -217,6 +243,7 @@ body {
   transform: translateY(-2px);
 }
 
+/* ---------- Expense Form / Lists ---------- */
 .expense-form {
   background: #f8f9fa;
   padding: 25px;
@@ -237,55 +264,9 @@ body {
   align-items: end;
 }
 
-.form-row input {
-  padding: 12px 16px;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 15px;
-  transition: all 0.3s ease;
-}
-
-.form-row input[type="date"] {
-  cursor: pointer;
-  color: #333;
-}
-
-.form-row input[type="date"]::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-  filter: invert(0.5);
-}
-
-.form-row input:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.btn-add {
-  padding: 12px 30px;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  white-space: nowrap;
-}
-
-.btn-add:hover {
-  background: #5568d3;
-  transform: translateY(-2px);
-}
-
-.expenses-section {
+/* ---------- Expenses Section ---------- */
+.expenses-section, .chart-section {
   margin-top: 30px;
-}
-
-.expenses-section h3 {
-  color: #333;
-  margin-bottom: 20px;
-  font-size: 22px;
 }
 
 .expense-list {
@@ -337,101 +318,37 @@ body {
   gap: 10px;
 }
 
-.btn-edit, .btn-delete, .btn-save, .btn-cancel {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 14px;
-}
-
-.btn-edit {
-  background: #ffc107;
-  color: #333;
-}
-
-.btn-edit:hover {
-  background: #e0a800;
-}
-
-.btn-delete {
-  background: #dc3545;
-  color: white;
-}
-
-.btn-delete:hover {
-  background: #c82333;
-}
-
-.btn-save {
-  background: #28a745;
-  color: white;
-}
-
-.btn-save:hover {
-  background: #218838;
-}
-
-.btn-cancel {
-  background: #6c757d;
-  color: white;
-}
-
-.btn-cancel:hover {
-  background: #5a6268;
-}
-
-.edit-form {
-  display: flex;
-  gap: 10px;
-  flex: 1;
-  align-items: center;
-}
-
-.edit-form input {
-  padding: 10px;
-  border: 2px solid #e0e0e0;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.edit-form input:focus {
-  outline: none;
-  border-color: #667eea;
-}
-
-.chart-section {
-  margin-top: 40px;
+/* ---------- Profile Form ---------- */
+.profile-form {
   background: #f8f9fa;
   padding: 25px;
   border-radius: 15px;
+  margin-bottom: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
-.chart-section h3 {
+.profile-form h3 {
   color: #333;
-  margin-bottom: 20px;
-  font-size: 22px;
+  font-size: 20px;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: #999;
+.profile-form input {
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: all 0.3s ease;
 }
 
-.empty-state-icon {
-  font-size: 64px;
-  margin-bottom: 20px;
+.profile-form input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-.empty-state-text {
-  font-size: 18px;
-  color: #666;
-}
-
-/* Filters Section */
+/* ---------- Filters Section ---------- */
 .filters-section {
   background: #f8f9fa;
   padding: 20px;
@@ -450,7 +367,6 @@ body {
   border: 2px solid #e0e0e0;
   border-radius: 8px;
   font-size: 15px;
-  transition: all 0.3s ease;
 }
 
 .filter-input:focus {
@@ -475,6 +391,7 @@ body {
   background: #5a6268;
 }
 
+/* ---------- Responsive ---------- */
 @media (max-width: 768px) {
   .form-row {
     grid-template-columns: 1fr;
@@ -494,7 +411,7 @@ body {
     flex: 1;
   }
   
-  .dashboard-header {
+  .dashboard-header, .profile-header {
     flex-direction: column;
     gap: 15px;
   }
