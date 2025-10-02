@@ -6,7 +6,6 @@ import { Chart, LineElement, CategoryScale, LinearScale, PointElement, Tooltip, 
 import "./App.css";
 Chart.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend, Filler);
 
-// ----------------- API Setup -----------------
 const api = axios.create({ baseURL: "http://localhost:5001/api" });
 api.interceptors.request.use(config => {
   const token = localStorage.getItem("token");
@@ -14,12 +13,10 @@ api.interceptors.request.use(config => {
   return config;
 });
 
-// ----------------- Auth Route Guard -----------------
 function PrivateRoute({ children }) {
   return localStorage.getItem("token") ? children : <Navigate to="/login" />;
 }
 
-// ----------------- Register -----------------
 function Register() {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [message, setMessage] = useState({ text: "", type: "" });
@@ -45,43 +42,26 @@ function Register() {
         <form onSubmit={submit}>
           <div className="form-group">
             <label>Full Name</label>
-            <input 
-              onChange={e => setForm({ ...form, name: e.target.value })} 
-              placeholder="Enter your name" 
-              required 
-            />
+            <input onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Enter your name" required />
           </div>
           <div className="form-group">
             <label>Email Address</label>
-            <input 
-              type="email" 
-              onChange={e => setForm({ ...form, email: e.target.value })} 
-              placeholder="Enter your email" 
-              required 
-            />
+            <input type="email" onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Enter your email" required />
           </div>
           <div className="form-group">
             <label>Password</label>
-            <input 
-              type="password" 
-              onChange={e => setForm({ ...form, password: e.target.value })} 
-              placeholder="Create a password" 
-              required 
-            />
+            <input type="password" onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Create a password" required />
           </div>
           <button className="btn-primary">Create Account</button>
           {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
           <div className="divider">Already have an account?</div>
-          <button type="button" className="btn-secondary" onClick={() => nav("/login")}>
-            Sign In
-          </button>
+          <button type="button" className="btn-secondary" onClick={() => nav("/login")}>Sign In</button>
         </form>
       </div>
     </div>
   );
 }
 
-// ----------------- Login -----------------
 function Login() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [message, setMessage] = useState({ text: "", type: "" });
@@ -108,42 +88,25 @@ function Login() {
         <form onSubmit={submit}>
           <div className="form-group">
             <label>Email Address</label>
-            <input
-              name="email"
-              type="email"
-              onChange={e => setForm({ ...form, email: e.target.value })}
-              placeholder="Enter your email"
-              required
-            />
+            <input name="email" type="email" onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Enter your email" required />
           </div>
           <div className="form-group">
             <label>Password</label>
-            <input
-              name="password"
-              type="password"
-              onChange={e => setForm({ ...form, password: e.target.value })}
-              placeholder="Enter your password"
-              required
-            />
+            <input name="password" type="password" onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Enter your password" required />
           </div>
           <button type="submit" className="btn-primary">Sign In</button>
           {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
           <div className="divider">Don't have an account?</div>
-          <button type="button" className="btn-secondary" onClick={() => nav("/register")}>
-            Create Account
-          </button>
+          <button type="button" className="btn-secondary" onClick={() => nav("/register")}>Create Account</button>
         </form>
       </div>
     </div>
   );
 }
 
-// ----------------- Dashboard -----------------
 function Dashboard() {
   const [expenses,setExpenses] = useState([]);
-  const [edit,setEdit] = useState(null);
   const [form,setForm] = useState({description:"",amount:"",date:new Date().toISOString().split('T')[0]});
-  const [editForm,setEditForm] = useState({description:"",amount:""});
   const [message,setMessage] = useState({ text: "", type: "" });
   const [summary,setSummary] = useState({});
   const nav = useNavigate();
@@ -178,29 +141,6 @@ function Dashboard() {
     }
   };
 
-  const startEdit = exp => {
-    setEdit(exp._id);
-    setEditForm({description:exp.description, amount:exp.amount});
-  };
-  
-  const saveEdit = async e => {
-    e.preventDefault();
-    await api.put(`/expense/${edit}`, editForm);
-    setEdit(null); 
-    setMessage({ text: "✅ Expense updated!", type: "success" });
-    setTimeout(() => setMessage({ text: "", type: "" }), 3000);
-    fetchAll();
-  };
-
-  const deleteExp = async id => {
-    if(window.confirm("Are you sure you want to delete this expense?")) {
-      await api.delete(`/expense/${id}`);
-      setMessage({ text: "✅ Expense deleted", type: "success" });
-      setTimeout(() => setMessage({ text: "", type: "" }), 3000);
-      fetchAll();
-    }
-  };
-
   const logout = () => {
     localStorage.removeItem("token");
     nav("/login");
@@ -217,7 +157,8 @@ function Dashboard() {
             <p style={{color: "#666", marginTop: "5px"}}>Total Spent: ₹{totalExpenses.toFixed(2)}</p>
           </div>
           <div style={{display: "flex", gap: "10px"}}>
-            <button className="btn-nav" onClick={() => nav("/logs")}>View Logs</button>
+            <button className="btn-nav" onClick={() => nav("/expense-logs")}>View Expenses</button>
+            <button className="btn-nav" onClick={() => nav("/audit-logs")}>Audit Logs</button>
             <button className="btn-logout" onClick={logout}>Logout</button>
           </div>
         </div>
@@ -226,25 +167,9 @@ function Dashboard() {
           <h3>Add New Expense</h3>
           <form onSubmit={submit}>
             <div className="form-row">
-              <input 
-                onChange={e=>setForm({...form,description:e.target.value})} 
-                value={form.description} 
-                placeholder="Description (e.g., Groceries)" 
-                required 
-              />
-              <input 
-                type="number" 
-                onChange={e=>setForm({...form,amount:+e.target.value})} 
-                value={form.amount} 
-                placeholder="Amount (₹)" 
-                required 
-              />
-              <input 
-                type="date" 
-                onChange={e=>setForm({...form,date:e.target.value})} 
-                value={form.date} 
-                required 
-              />
+              <input onChange={e=>setForm({...form,description:e.target.value})} value={form.description} placeholder="Description (e.g., Groceries)" required />
+              <input type="number" onChange={e=>setForm({...form,amount:+e.target.value})} value={form.amount} placeholder="Amount (₹)" required />
+              <input type="date" onChange={e=>setForm({...form,date:e.target.value})} value={form.date} required />
               <button className="btn-add">Add Expense</button>
             </div>
           </form>
@@ -276,22 +201,9 @@ function Dashboard() {
               }}
               options={{
                 responsive: true,
-                interaction: {
-                  mode: 'index',
-                  intersect: false,
-                },
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
-                  legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                      font: {
-                        size: 14,
-                        weight: 'bold'
-                      },
-                      color: '#333'
-                    }
-                  },
+                  legend: { display: true, position: 'top', labels: { font: { size: 14, weight: 'bold' }, color: '#333' } },
                   tooltip: {
                     enabled: true,
                     backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -300,53 +212,17 @@ function Dashboard() {
                     borderColor: '#667eea',
                     borderWidth: 2,
                     padding: 12,
-                    displayColors: true,
                     callbacks: {
-                      label: function(context) {
-                        return 'Spent: ₹' + context.parsed.y.toFixed(2);
-                      },
-                      title: function(context) {
-                        const date = new Date(context[0].label);
-                        return date.toLocaleDateString('en-IN', { 
-                          weekday: 'short', 
-                          year: 'numeric', 
-                          month: 'short', 
-                          day: 'numeric' 
-                        });
-                      }
+                      label: ctx => 'Spent: ₹' + ctx.parsed.y.toFixed(2),
+                      title: ctx => new Date(ctx[0].label).toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
                     }
                   }
                 },
                 scales: {
-                  y: {
-                    beginAtZero: true,
-                    ticks: {
-                      callback: function(value) {
-                        return '₹' + value;
-                      },
-                      font: {
-                        size: 12
-                      }
-                    },
-                    grid: {
-                      color: 'rgba(0, 0, 0, 0.05)'
-                    }
-                  },
-                  x: {
-                    ticks: {
-                      font: {
-                        size: 12
-                      }
-                    },
-                    grid: {
-                      display: false
-                    }
-                  }
+                  y: { beginAtZero: true, ticks: { callback: v => '₹' + v, font: { size: 12 } }, grid: { color: 'rgba(0, 0, 0, 0.05)' } },
+                  x: { ticks: { font: { size: 12 } }, grid: { display: false } }
                 },
-                animation: {
-                  duration: 1000,
-                  easing: 'easeInOutQuart'
-                }
+                animation: { duration: 1000, easing: 'easeInOutQuart' }
               }}
             />
           </div>
@@ -356,8 +232,7 @@ function Dashboard() {
   );
 }
 
-// ----------------- Logs Page -----------------
-function Logs() {
+function ExpenseLogs() {
   const [expenses, setExpenses] = useState([]);
   const [edit, setEdit] = useState(null);
   const [editForm, setEditForm] = useState({description:"", amount:"", date:""});
@@ -379,11 +254,7 @@ function Logs() {
 
   const startEdit = exp => {
     setEdit(exp._id);
-    setEditForm({
-      description: exp.description, 
-      amount: exp.amount,
-      date: new Date(exp.date).toISOString().split('T')[0]
-    });
+    setEditForm({ description: exp.description, amount: exp.amount, date: new Date(exp.date).toISOString().split('T')[0] });
   };
 
   const saveEdit = async e => {
@@ -417,7 +288,6 @@ function Logs() {
     nav("/login");
   };
 
-  // Filter expenses
   const filteredExpenses = expenses.filter(exp => {
     const matchesSearch = exp.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesDate = filterDate ? new Date(exp.date).toISOString().split('T')[0] === filterDate : true;
@@ -436,70 +306,36 @@ function Logs() {
           </div>
           <div style={{display: "flex", gap: "10px"}}>
             <button className="btn-nav" onClick={() => nav("/dashboard")}>Dashboard</button>
+            <button className="btn-nav" onClick={() => nav("/audit-logs")}>Audit Logs</button>
             <button className="btn-logout" onClick={logout}>Logout</button>
           </div>
         </div>
 
-        {/* Filters */}
         <div className="filters-section">
-          <input 
-            type="text"
-            placeholder="🔍 Search by description..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="filter-input"
-          />
-          <input 
-            type="date"
-            value={filterDate}
-            onChange={e => setFilterDate(e.target.value)}
-            className="filter-input"
-          />
+          <input type="text" placeholder="🔍 Search by description..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="filter-input" />
+          <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} className="filter-input" />
           {(searchTerm || filterDate) && (
-            <button 
-              className="btn-clear-filter" 
-              onClick={() => {setSearchTerm(""); setFilterDate("");}}>
-              Clear Filters
-            </button>
+            <button className="btn-clear-filter" onClick={() => {setSearchTerm(""); setFilterDate("");}}>Clear Filters</button>
           )}
         </div>
 
         {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
 
-        {/* Expenses List */}
         <div className="expenses-section">
           {filteredExpenses.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state-icon">📊</div>
-              <div className="empty-state-text">
-                {expenses.length === 0 ? "No expenses yet. Go to Dashboard to add expenses!" : "No expenses match your filters."}
-              </div>
+              <div className="empty-state-text">{expenses.length === 0 ? "No expenses yet. Go to Dashboard to add expenses!" : "No expenses match your filters."}</div>
             </div>
           ) : (
             <ul className="expense-list">
-              {filteredExpenses.map(exp =>
+              {filteredExpenses.map(exp => (
                 <li key={exp._id} className="expense-item">
                   {edit === exp._id ? (
                     <form className="edit-form" onSubmit={saveEdit}>
-                      <input 
-                        value={editForm.description} 
-                        onChange={e=>setEditForm({...editForm,description:e.target.value})} 
-                        placeholder="Description"
-                        required 
-                      />
-                      <input 
-                        type="number" 
-                        value={editForm.amount} 
-                        onChange={e=>setEditForm({...editForm,amount:+e.target.value})} 
-                        placeholder="Amount"
-                        required 
-                      />
-                      <input 
-                        type="date" 
-                        value={editForm.date} 
-                        onChange={e=>setEditForm({...editForm,date:e.target.value})} 
-                        required 
-                      />
+                      <input value={editForm.description} onChange={e=>setEditForm({...editForm,description:e.target.value})} placeholder="Description" required />
+                      <input type="number" value={editForm.amount} onChange={e=>setEditForm({...editForm,amount:+e.target.value})} placeholder="Amount" required />
+                      <input type="date" value={editForm.date} onChange={e=>setEditForm({...editForm,date:e.target.value})} required />
                       <button type="submit" className="btn-save">Save</button>
                       <button type="button" className="btn-cancel" onClick={()=>setEdit(null)}>Cancel</button>
                     </form>
@@ -508,11 +344,7 @@ function Logs() {
                       <div className="expense-info">
                         <div className="expense-description">{exp.description}</div>
                         <div className="expense-amount">₹{exp.amount.toFixed(2)}</div>
-                        <div className="expense-date">{new Date(exp.date).toLocaleDateString('en-IN', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}</div>
+                        <div className="expense-date">{new Date(exp.date).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
                       </div>
                       <div className="expense-actions">
                         <button className="btn-edit" onClick={()=>startEdit(exp)}>Edit</button>
@@ -521,7 +353,7 @@ function Logs() {
                     </>
                   )}
                 </li>
-              )}
+              ))}
             </ul>
           )}
         </div>
@@ -530,7 +362,162 @@ function Logs() {
   );
 }
 
-// ----------------- App Root -----------------
+function AuditLogs() {
+  const [logs, setLogs] = useState([]);
+  const [stats, setStats] = useState({});
+  const [filterAction, setFilterAction] = useState("ALL");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [loading, setLoading] = useState(true);
+  const nav = useNavigate();
+
+  const fetchLogs = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filterAction !== "ALL") params.append("action", filterAction);
+      if (startDate) params.append("startDate", startDate);
+      if (endDate) params.append("endDate", endDate);
+      const { data } = await api.get(`/audit-logs?${params.toString()}`);
+      setLogs(data);
+    } catch (error) {
+      console.error("Failed to fetch audit logs:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const { data } = await api.get("/audit-logs/stats");
+      setStats(data);
+    } catch (error) {
+      console.error("Failed to fetch stats:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchLogs();
+    fetchStats();
+  }, [filterAction, startDate, endDate]);
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    nav("/login");
+  };
+
+  const clearFilters = () => {
+    setFilterAction("ALL");
+    setStartDate("");
+    setEndDate("");
+  };
+
+  const getActionIcon = (action) => {
+    const icons = { REGISTER: "👤", LOGIN: "🔐", ADD_EXPENSE: "➕", UPDATE_EXPENSE: "✏️", DELETE_EXPENSE: "🗑️" };
+    return icons[action] || "📝";
+  };
+
+  const getActionColor = (action) => {
+    const colors = { REGISTER: "#28a745", LOGIN: "#17a2b8", ADD_EXPENSE: "#667eea", UPDATE_EXPENSE: "#ffc107", DELETE_EXPENSE: "#dc3545" };
+    return colors[action] || "#6c757d";
+  };
+
+  const formatDetails = (action, details) => {
+    if (!details) return "No details available";
+    switch (action) {
+      case "REGISTER": return `New user: ${details.name}`;
+      case "LOGIN": return `Logged in at ${new Date(details.loginTime).toLocaleString('en-IN')}`;
+      case "ADD_EXPENSE": return `Added "${details.description}" - ₹${details.amount}`;
+      case "UPDATE_EXPENSE": return `Updated "${details.oldData.description}" (₹${details.oldData.amount}) → "${details.newData.description}" (₹${details.newData.amount})`;
+      case "DELETE_EXPENSE": return `Deleted "${details.description}" - ₹${details.amount}`;
+      default: return JSON.stringify(details);
+    }
+  };
+
+  return (
+    <div className="container">
+      <div className="dashboard">
+        <div className="dashboard-header">
+          <div>
+            <h2>🔍 Audit Logs</h2>
+            <p style={{color: "#666", marginTop: "5px"}}>Track all account activities</p>
+          </div>
+          <div style={{display: "flex", gap: "10px"}}>
+            <button className="btn-nav" onClick={() => nav("/dashboard")}>Dashboard</button>
+            <button className="btn-nav" onClick={() => nav("/expense-logs")}>Expenses</button>
+            <button className="btn-logout" onClick={logout}>Logout</button>
+          </div>
+        </div>
+
+        <div className="stats-grid">
+          <div className="stat-card" style={{background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"}}>
+            <div className="stat-value">{logs.length}</div>
+            <div className="stat-label">Total Activities</div>
+          </div>
+          <div className="stat-card" style={{background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"}}>
+            <div className="stat-value">{stats.ADD_EXPENSE || 0}</div>
+            <div className="stat-label">Expenses Added</div>
+          </div>
+          <div className="stat-card" style={{background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"}}>
+            <div className="stat-value">{stats.UPDATE_EXPENSE || 0}</div>
+            <div className="stat-label">Expenses Updated</div>
+          </div>
+          <div className="stat-card" style={{background: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"}}>
+            <div className="stat-value">{stats.LOGIN || 0}</div>
+            <div className="stat-label">Login Sessions</div>
+          </div>
+        </div>
+
+        <div className="filters-section">
+          <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="filter-input">
+            <option value="ALL">All Actions</option>
+            <option value="REGISTER">Registration</option>
+            <option value="LOGIN">Login</option>
+            <option value="ADD_EXPENSE">Add Expense</option>
+            <option value="UPDATE_EXPENSE">Update Expense</option>
+            <option value="DELETE_EXPENSE">Delete Expense</option>
+          </select>
+          <input type="date" placeholder="Start Date" value={startDate} onChange={e => setStartDate(e.target.value)} className="filter-input" />
+          <input type="date" placeholder="End Date" value={endDate} onChange={e => setEndDate(e.target.value)} className="filter-input" />
+          {(filterAction !== "ALL" || startDate || endDate) && (
+            <button className="btn-clear-filter" onClick={clearFilters}>Clear Filters</button>
+          )}
+        </div>
+
+        <div className="audit-logs-section">
+          {loading ? (
+            <div className="empty-state"><div className="empty-state-text">Loading audit logs...</div></div>
+          ) : logs.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">📋</div>
+              <div className="empty-state-text">No audit logs found</div>
+            </div>
+          ) : (
+            <div className="audit-timeline">
+              {logs.map((log, index) => (
+                <div key={log._id || index} className="audit-log-item">
+                  <div className="audit-log-icon" style={{background: getActionColor(log.action)}}>{getActionIcon(log.action)}</div>
+                  <div className="audit-log-content">
+                    <div className="audit-log-header">
+                      <span className="audit-log-action" style={{color: getActionColor(log.action)}}>{log.action.replace(/_/g, " ")}</span>
+                      <span className="audit-log-time">{new Date(log.timestamp).toLocaleString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                    </div>
+                    <div className="audit-log-details">{formatDetails(log.action, log.details)}</div>
+                    <div className="audit-log-meta">
+                      <span>👤 {log.userEmail}</span>
+                      {log.ipAddress && <span>📍 {log.ipAddress}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -538,7 +525,8 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-        <Route path="/logs" element={<PrivateRoute><Logs /></PrivateRoute>} />
+        <Route path="/expense-logs" element={<PrivateRoute><ExpenseLogs /></PrivateRoute>} />
+        <Route path="/audit-logs" element={<PrivateRoute><AuditLogs /></PrivateRoute>} />
         <Route path="/" element={<Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>
