@@ -19,7 +19,6 @@ const UserSchema = new mongoose.Schema({
   password: String
 });
 
-// Hash password before saving
 UserSchema.pre('save', async function (next) {
   if (this.isModified('password')) {
     this.password = await bcrypt.hash(this.password, 10);
@@ -27,7 +26,6 @@ UserSchema.pre('save', async function (next) {
   next();
 });
 
-// Compare password
 UserSchema.methods.matchPassword = function (pw) {
   return bcrypt.compareSync(pw, this.password);
 };
@@ -40,14 +38,47 @@ const ExpenseSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 });
 
+// ✅ NEW: Audit Log Schema
+const AuditLogSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userEmail: { type: String, required: true },
+  action: { 
+    type: String, 
+    enum: ['REGISTER', 'LOGIN', 'ADD_EXPENSE', 'UPDATE_EXPENSE', 'DELETE_EXPENSE'],
+    required: true 
+  },
+  details: { type: mongoose.Schema.Types.Mixed },
+  ipAddress: String,
+  userAgent: String,
+  timestamp: { type: Date, default: Date.now }
+});
+
 // ✅ Models
 const User = mongoose.model('User', UserSchema);
 const Expense = mongoose.model('Expense', ExpenseSchema);
+const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
 
 // ✅ Express App Setup
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ✅ Helper: Create Audit Log
+async function createAuditLog(userId, userEmail, action, details, req) {
+  try {
+    const log = new AuditLog({
+      userId,
+      userEmail,
+      action,
+      details,
+      ipAddress: req.ip || req.connection.remoteAddress,
+      userAgent: req.headers['user-agent']
+    });
+    await log.save();
+  } catch (e) {
+    console.error('Failed to create audit log:', e);
+  }
+}
 
 // ✅ Middleware: Auth
 function auth(req, res, next) {
@@ -69,7 +100,6 @@ function auth(req, res, next) {
 // ✅ User Registration
 app.post('/api/register', async (req, res) => {
   try {
-    // Check if user already exists
     const existingUser = await User.findOne({ email: req.body.email });
     if (existingUser) {
       return res.status(400).json({ message: 'Email already exists. Please use a different email or login.' });
@@ -77,6 +107,16 @@ app.post('/api/register', async (req, res) => {
     
     let user = new User(req.body);
     await user.save();
+
+    // Log registration
+    await createAuditLog(
+      user._id, 
+      user.email, 
+      'REGISTER', 
+      { name: user.name }, 
+      req
+    );
+
     res.json({ message: 'Registration successful' });
   } catch (e) {
     console.error('Registration error:', e);
@@ -90,6 +130,16 @@ app.post('/api/login', async (req, res) => {
   if (!user || !user.matchPassword(req.body.password)) {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
+
+  // Log login
+  await createAuditLog(
+    user._id, 
+    user.email, 
+    'LOGIN', 
+    { loginTime: new Date() }, 
+    req
+  );
+
   let token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
   res.json({ token });
 });
@@ -98,6 +148,21 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/expense', auth, async (req, res) => {
   let expense = new Expense({ ...req.body, user: req.user._id });
   await expense.save();
+
+  // Log expense addition
+  await createAuditLog(
+    req.user._id,
+    req.user.email,
+    'ADD_EXPENSE',
+    {
+      expenseId: expense._id,
+      description: expense.description,
+      amount: expense.amount,
+      date: expense.date
+    },
+    req
+  );
+
   res.json(expense);
 });
 
@@ -109,11 +174,38 @@ app.get('/api/expense', auth, async (req, res) => {
 
 // ✅ Edit Expense
 app.put('/api/expense/:id', auth, async (req, res) => {
+  // Get old expense data before update
+  const oldExpense = await Expense.findOne({ _id: req.params.id, user: req.user._id });
+  
   let exp = await Expense.findOneAndUpdate(
     { _id: req.params.id, user: req.user._id },
     req.body,
     { new: true }
   );
+
+  if (exp && oldExpense) {
+    // Log expense update
+    await createAuditLog(
+      req.user._id,
+      req.user.email,
+      'UPDATE_EXPENSE',
+      {
+        expenseId: exp._id,
+        oldData: {
+          description: oldExpense.description,
+          amount: oldExpense.amount,
+          date: oldExpense.date
+        },
+        newData: {
+          description: exp.description,
+          amount: exp.amount,
+          date: exp.date
+        }
+      },
+      req
+    );
+  }
+
   res.json(exp || {});
 });
 
@@ -124,9 +216,25 @@ app.delete('/api/expense/:id', auth, async (req, res) => {
       _id: req.params.id,
       user: req.user._id
     });
+    
     if (!exp) {
       return res.status(404).json({ message: 'Expense not found' });
     }
+
+    // Log expense deletion
+    await createAuditLog(
+      req.user._id,
+      req.user.email,
+      'DELETE_EXPENSE',
+      {
+        expenseId: exp._id,
+        description: exp.description,
+        amount: exp.amount,
+        date: exp.date
+      },
+      req
+    );
+
     res.json({ message: 'Expense deleted successfully' });
   } catch (e) {
     res.status(500).json({ message: 'Error deleting expense' });
@@ -160,6 +268,58 @@ app.get('/api/expense/summary/daily', auth, async (req, res) => {
   });
 
   res.json(dailyTotals);
+});
+
+// ✅ NEW: Get Audit Logs
+app.get('/api/audit-logs', auth, async (req, res) => {
+  try {
+    const { action, startDate, endDate, limit = 50 } = req.query;
+    
+    let query = { userId: req.user._id };
+    
+    // Filter by action type
+    if (action && action !== 'ALL') {
+      query.action = action;
+    }
+    
+    // Filter by date range
+    if (startDate || endDate) {
+      query.timestamp = {};
+      if (startDate) query.timestamp.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.timestamp.$lte = end;
+      }
+    }
+    
+    const logs = await AuditLog.find(query)
+      .sort({ timestamp: -1 })
+      .limit(parseInt(limit));
+    
+    res.json(logs);
+  } catch (e) {
+    console.error('Error fetching audit logs:', e);
+    res.status(500).json({ message: 'Error fetching audit logs' });
+  }
+});
+
+// ✅ NEW: Get Audit Stats
+app.get('/api/audit-logs/stats', auth, async (req, res) => {
+  try {
+    const stats = await AuditLog.aggregate([
+      { $match: { userId: req.user._id } },
+      { $group: { _id: '$action', count: { $sum: 1 } } }
+    ]);
+    
+    const statsObj = {};
+    stats.forEach(s => statsObj[s._id] = s.count);
+    
+    res.json(statsObj);
+  } catch (e) {
+    console.error('Error fetching audit stats:', e);
+    res.status(500).json({ message: 'Error fetching stats' });
+  }
 });
 
 // ✅ Start Server
