@@ -44,7 +44,7 @@ const AuditLogSchema = new mongoose.Schema({
   userEmail: { type: String, required: true },
   action: { 
     type: String, 
-    enum: ['REGISTER', 'LOGIN', 'ADD_EXPENSE', 'UPDATE_EXPENSE', 'DELETE_EXPENSE'],
+    enum: ['LOGIN', 'LOGOUT', 'ADD_EXPENSE', 'UPDATE_EXPENSE', 'DELETE_EXPENSE'],
     required: true 
   },
   details: { type: mongoose.Schema.Types.Mixed },
@@ -104,18 +104,18 @@ app.post('/api/register', async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ message: 'Email already exists. Please use a different email or login.' });
     }
-    
+
     let user = new User(req.body);
     await user.save();
 
-    // Log registration
-    await createAuditLog(
-      user._id, 
-      user.email, 
-      'REGISTER', 
-      { name: user.name }, 
-      req
-    );
+    // Registration audit log removed as requested
+    // await createAuditLog(
+    //   user._id,
+    //   user.email,
+    //   'REGISTER',
+    //   { name: user.name },
+    //   req
+    // );
 
     res.json({ message: 'Registration successful' });
   } catch (e) {
@@ -124,24 +124,23 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// ✅ User Login
-app.post('/api/login', async (req, res) => {
-  let user = await User.findOne({ email: req.body.email });
-  if (!user || !user.matchPassword(req.body.password)) {
-    return res.status(401).json({ message: 'Invalid credentials' });
+// ✅ User Logout
+app.post('/api/logout', auth, async (req, res) => {
+  try {
+    // Log logout
+    await createAuditLog(
+      req.user._id,
+      req.user.email,
+      'LOGOUT',
+      { logoutTime: new Date() },
+      req
+    );
+
+    res.json({ message: 'Logout successful' });
+  } catch (e) {
+    console.error('Logout error:', e);
+    res.status(500).json({ message: 'Logout failed' });
   }
-
-  // Log login
-  await createAuditLog(
-    user._id, 
-    user.email, 
-    'LOGIN', 
-    { loginTime: new Date() }, 
-    req
-  );
-
-  let token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
-  res.json({ token });
 });
 
 // ✅ Add Expense

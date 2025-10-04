@@ -431,16 +431,87 @@ body {
   color: #666;
 }
 
-/* Filters Section */
+/* Enhanced Filters Section */
 .filters-section {
   background: #f8f9fa;
-  padding: 20px;
+  padding: 25px;
   border-radius: 15px;
   margin-bottom: 25px;
   display: flex;
-  gap: 15px;
-  align-items: center;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.quick-filters, .date-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.filter-label {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.filter-buttons {
+  display: flex;
+  gap: 8px;
   flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 8px 16px;
+  border: 2px solid #e0e0e0;
+  background: white;
+  color: #666;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.filter-btn:hover {
+  border-color: #667eea;
+  color: #667eea;
+  transform: translateY(-1px);
+}
+
+.filter-btn.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.advanced-filters {
+  display: flex;
+  gap: 15px;
+  align-items: end;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 120px;
+}
+
+.filter-group .filter-label {
+  margin-bottom: 0;
+  font-size: 12px;
+  color: #666;
+}
+
+.filter-group .filter-input {
+  flex: none;
+  min-width: 140px;
 }
 
 .filter-input {
@@ -600,10 +671,102 @@ body {
   flex-wrap: wrap;
 }
 
-.audit-log-meta span {
-  display: flex;
+/* Audit Table */
+.audit-table-container {
+  overflow-x: auto;
+  margin-top: 20px;
+  border-radius: 12px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.audit-table thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.audit-table th {
+  padding: 18px 15px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.audit-table th:first-child {
+  border-top-left-radius: 12px;
+  padding-left: 20px;
+}
+
+.audit-table th:last-child {
+  border-top-right-radius: 12px;
+  padding-right: 20px;
+}
+
+.audit-table tbody tr {
+  border-bottom: 1px solid #f0f0f0;
+  transition: all 0.3s ease;
+}
+
+.audit-table tbody tr:hover {
+  background: #f8f9ff;
+  transform: scale(1.01);
+}
+
+.audit-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.audit-table td {
+  padding: 15px;
+  font-size: 14px;
+  color: #333;
+  vertical-align: middle;
+}
+
+.audit-table td:first-child {
+  padding-left: 20px;
+}
+
+.audit-table td:last-child {
+  padding-right: 20px;
+}
+
+.action-badge {
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+}
+
+.audit-table .empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+}
+
+.audit-table .empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 15px;
+  opacity: 0.5;
+}
+
+.audit-table .empty-state-text {
+  font-size: 16px;
+  color: #666;
 }
 
 @media (max-width: 768px) {
@@ -634,20 +797,29 @@ body {
     width: 100%;
   }
   
-  .filters-section {
+  .advanced-filters-section {
     flex-direction: column;
   }
-  
+
   .filter-input {
     width: 100%;
   }
 
-  .stats-grid {
-    grid-template-columns: 1fr;
+  .advanced-filters {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .audit-log-item {
-    gap: 15px;
+  .filter-group {
+    min-width: auto;
+  }
+
+  .filter-group .filter-input {
+    min-width: auto;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
   }
 
   .audit-log-icon {
@@ -656,8 +828,33 @@ body {
     font-size: 20px;
   }
 
-  .audit-log-header {
-    flex-direction: column;
-    align-items: flex-start;
+  .audit-table-container {
+    margin: 10px -15px;
+    border-radius: 0;
+  }
+
+  .audit-table {
+    font-size: 12px;
+  }
+
+  .audit-table th,
+  .audit-table td {
+    padding: 10px 8px;
+  }
+
+  .audit-table th:first-child,
+  .audit-table td:first-child {
+    padding-left: 15px;
+  }
+
+  .audit-table th:last-child,
+  .audit-table td:last-child {
+    padding-right: 15px;
+  }
+
+  .action-badge {
+    font-size: 10px;
+    padding: 4px 8px;
+    gap: 4px;
   }
 }

@@ -20,6 +20,7 @@ function PrivateRoute({ children }) {
 function Register() {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const nav = useNavigate();
 
   const submit = async e => {
@@ -50,7 +51,32 @@ function Register() {
           </div>
           <div className="form-group">
             <label>Password</label>
-            <input type="password" onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Create a password" required />
+            <div style={{position: "relative"}}>
+              <input
+                type={showPassword ? "text" : "password"}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                placeholder="Create a password"
+                required
+                style={{paddingRight: "40px"}}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: "absolute",
+                  right: "10px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "16px",
+                  color: "#666"
+                }}
+              >
+                {showPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
           </div>
           <button className="btn-primary">Create Account</button>
           {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
@@ -65,6 +91,7 @@ function Register() {
 function Login() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const nav = useNavigate();
 
   const submit = async e => {
@@ -92,7 +119,33 @@ function Login() {
           </div>
           <div className="form-group">
             <label>Password</label>
-            <input name="password" type="password" onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Enter your password" required />
+            <div style={{position: "relative"}}>
+              <input
+                name="password"
+                type={showPassword ? "text" : "password"}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                placeholder="Enter your password"
+                required
+                style={{paddingRight: "40px"}}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: "absolute",
+                  right: "10px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "16px",
+                  color: "#666"
+                }}
+              >
+                {showPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
           </div>
           <button type="submit" className="btn-primary">Sign In</button>
           {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
@@ -401,7 +454,27 @@ function AuditLogs() {
     fetchStats();
   }, [filterAction, startDate, endDate]);
 
-  const logout = () => {
+  const logout = async () => {
+    const token = localStorage.getItem("token");
+
+    if (token) {
+      try {
+        // Create axios instance with token for logout call
+        const logoutApi = axios.create({
+          baseURL: "http://localhost:5001/api",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        // Make logout API call first
+        await logoutApi.post("/logout");
+        console.log("Logout logged successfully");
+      } catch (error) {
+        console.error("Logout API error:", error);
+        // Continue with logout even if API fails
+      }
+    }
+
+    // Clear token and redirect after API call
     localStorage.removeItem("token");
     nav("/login");
   };
@@ -412,25 +485,61 @@ function AuditLogs() {
     setEndDate("");
   };
 
-  const getActionIcon = (action) => {
-    const icons = { REGISTER: "👤", LOGIN: "🔐", ADD_EXPENSE: "➕", UPDATE_EXPENSE: "✏️", DELETE_EXPENSE: "🗑️" };
-    return icons[action] || "📝";
-  };
-
   const getActionColor = (action) => {
-    const colors = { REGISTER: "#28a745", LOGIN: "#17a2b8", ADD_EXPENSE: "#667eea", UPDATE_EXPENSE: "#ffc107", DELETE_EXPENSE: "#dc3545" };
+    const colors = { LOGIN: "#17a2b8", ADD_EXPENSE: "#667eea", UPDATE_EXPENSE: "#ffc107", DELETE_EXPENSE: "#dc3545" };
     return colors[action] || "#6c757d";
   };
 
-  const formatDetails = (action, details) => {
-    if (!details) return "No details available";
+  const getActionIcon = (action) => {
+    const icons = { LOGIN: "🔐", ADD_EXPENSE: "➕", UPDATE_EXPENSE: "✏️", DELETE_EXPENSE: "🗑️" };
+    return icons[action] || "📝";
+  };
+
+  const getActionDisplayName = (action) => {
+    const displayNames = {
+      'LOGIN': 'Login',
+      'ADD_EXPENSE': 'Add',
+      'UPDATE_EXPENSE': 'Edit',
+      'DELETE_EXPENSE': 'Delete'
+    };
+    return displayNames[action] || action.replace(/_/g, " ");
+  };
+
+  const getChangedFrom = (action, details) => {
+    if (!details) return "-";
     switch (action) {
-      case "REGISTER": return `New user: ${details.name}`;
-      case "LOGIN": return `Logged in at ${new Date(details.loginTime).toLocaleString('en-IN')}`;
-      case "ADD_EXPENSE": return `Added "${details.description}" - ₹${details.amount}`;
-      case "UPDATE_EXPENSE": return `Updated "${details.oldData.description}" (₹${details.oldData.amount}) → "${details.newData.description}" (₹${details.newData.amount})`;
-      case "DELETE_EXPENSE": return `Deleted "${details.description}" - ₹${details.amount}`;
-      default: return JSON.stringify(details);
+      case "UPDATE_EXPENSE":
+        if (details.oldData) {
+          return `${details.oldData.description} (₹${details.oldData.amount})`;
+        }
+        return "-";
+      case "LOGIN":
+        return "-"; // Show hyphen for empty login fields
+      case "ADD_EXPENSE":
+        return "No expense";
+      case "DELETE_EXPENSE":
+        return `${details.description} (₹${details.amount})`;
+      default:
+        return "-";
+    }
+  };
+
+  const getChangedTo = (action, details) => {
+    if (!details) return "-";
+    switch (action) {
+      case "UPDATE_EXPENSE":
+        if (details.newData) {
+          return `${details.newData.description} (₹${details.newData.amount})`;
+        }
+        return "-";
+      case "LOGIN":
+        return "-"; // Show hyphen for empty login fields
+      case "ADD_EXPENSE":
+        return `${details.description} (₹${details.amount})`;
+      case "DELETE_EXPENSE":
+        return "Deleted";
+      default:
+        return "-";
     }
   };
 
@@ -460,7 +569,7 @@ function AuditLogs() {
           </div>
           <div className="stat-card" style={{background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"}}>
             <div className="stat-value">{stats.UPDATE_EXPENSE || 0}</div>
-            <div className="stat-label">Expenses Updated</div>
+            <div className="stat-label">Expenses Edited</div>
           </div>
           <div className="stat-card" style={{background: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"}}>
             <div className="stat-value">{stats.LOGIN || 0}</div>
@@ -469,18 +578,62 @@ function AuditLogs() {
         </div>
 
         <div className="filters-section">
-          <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="filter-input">
-            <option value="ALL">All Actions</option>
-            <option value="REGISTER">Registration</option>
-            <option value="LOGIN">Login</option>
-            <option value="ADD_EXPENSE">Add Expense</option>
-            <option value="UPDATE_EXPENSE">Update Expense</option>
-            <option value="DELETE_EXPENSE">Delete Expense</option>
-          </select>
-          <input type="date" placeholder="Start Date" value={startDate} onChange={e => setStartDate(e.target.value)} className="filter-input" />
-          <input type="date" placeholder="End Date" value={endDate} onChange={e => setEndDate(e.target.value)} className="filter-input" />
+          {/* Date Range Filters */}
+          <div className="date-filters">
+            <label className="filter-label">Date Range:</label>
+            <div className="filter-buttons">
+              <button
+                className={`filter-btn ${!startDate && !endDate ? "active" : ""}`}
+                onClick={() => { setStartDate(""); setEndDate(""); }}
+              >
+                All Time
+              </button>
+              <button
+                className={`filter-btn ${startDate === new Date().toISOString().split('T')[0] && !endDate ? "active" : ""}`}
+                onClick={() => { setStartDate(new Date().toISOString().split('T')[0]); setEndDate(""); }}
+              >
+                Today
+              </button>
+              <button
+                className={`filter-btn ${startDate === new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] && !endDate ? "active" : ""}`}
+                onClick={() => { setStartDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]); setEndDate(""); }}
+              >
+                This Week
+              </button>
+              <button
+                className={`filter-btn ${startDate === new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] && !endDate ? "active" : ""}`}
+                onClick={() => { setStartDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]); setEndDate(""); }}
+              >
+                This Month
+              </button>
+            </div>
+          </div>
+
+          {/* Advanced Filters */}
+          <div className="advanced-filters">
+            <div className="filter-group">
+              <label className="filter-label">Action:</label>
+              <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="filter-input">
+                <option value="ALL">All Actions</option>
+                <option value="LOGIN">Login</option>
+                <option value="ADD_EXPENSE">Add</option>
+                <option value="UPDATE_EXPENSE">Edit</option>
+                <option value="DELETE_EXPENSE">Delete</option>
+              </select>
+            </div>
+            <div className="filter-group">
+              <label className="filter-label">From:</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="filter-input" />
+            </div>
+            <div className="filter-group">
+              <label className="filter-label">To:</label>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="filter-input" />
+            </div>
+          </div>
+
+          {/* Clear Filters */}
           {(filterAction !== "ALL" || startDate || endDate) && (
-            <button className="btn-clear-filter" onClick={clearFilters}>Clear Filters</button>
+            <button className="btn-clear-filter" onClick={clearFilters}>Clear All Filters</button>
           )}
         </div>
 
@@ -493,23 +646,33 @@ function AuditLogs() {
               <div className="empty-state-text">No audit logs found</div>
             </div>
           ) : (
-            <div className="audit-timeline">
-              {logs.map((log, index) => (
-                <div key={log._id || index} className="audit-log-item">
-                  <div className="audit-log-icon" style={{background: getActionColor(log.action)}}>{getActionIcon(log.action)}</div>
-                  <div className="audit-log-content">
-                    <div className="audit-log-header">
-                      <span className="audit-log-action" style={{color: getActionColor(log.action)}}>{log.action.replace(/_/g, " ")}</span>
-                      <span className="audit-log-time">{new Date(log.timestamp).toLocaleString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                    </div>
-                    <div className="audit-log-details">{formatDetails(log.action, log.details)}</div>
-                    <div className="audit-log-meta">
-                      <span>👤 {log.userEmail}</span>
-                      {log.ipAddress && <span>📍 {log.ipAddress}</span>}
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="audit-table-container">
+              <table className="audit-table">
+                <thead>
+                  <tr>
+                    <th>Action</th>
+                    <th>User</th>
+                    <th>Field Changed From</th>
+                    <th>Changed To</th>
+                    <th>Date/Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((log, index) => (
+                    <tr key={log._id || index}>
+                      <td>
+                        <span className="action-badge" style={{background: getActionColor(log.action)}}>
+                          {getActionIcon(log.action)} {getActionDisplayName(log.action)}
+                        </span>
+                      </td>
+                      <td>{log.userEmail}</td>
+                      <td>{getChangedFrom(log.action, log.details)}</td>
+                      <td>{getChangedTo(log.action, log.details)}</td>
+                      <td>{new Date(log.timestamp).toLocaleString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
