@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import { Line } from "react-chartjs-2";
-import { Chart, LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend, Filler } from "chart.js";
+import { Bar } from "react-chartjs-2";
+import { Chart, BarElement, CategoryScale, LinearScale, Tooltip, Legend } from "chart.js";
 import "./App.css";
-Chart.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend, Filler);
+Chart.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 // ----------------- API Setup -----------------
 const api = axios.create({ baseURL: "http://localhost:5001/api" });
@@ -803,27 +803,28 @@ function Dashboard({ onProfileOpen }) {
         </button>
       </div>
 
+      <div className="tab-navigation">
+        <button
+          className={`tab-button ${window.location.pathname === '/dashboard' ? 'active' : ''}`}
+          onClick={() => nav('/dashboard')}
+        >
+          Dashboard
+        </button>
+        <button
+          className={`tab-button ${window.location.pathname === '/logs' ? 'active' : ''}`}
+          onClick={() => nav('/logs')}
+        >
+          Expense Logs
+        </button>
+        <button
+          className={`tab-button ${window.location.pathname === '/audit' ? 'active' : ''}`}
+          onClick={() => nav('/audit')}
+        >
+          Audit Logs
+        </button>
+      </div>
+
       <div className="dashboard">
-        <div className="tab-navigation">
-          <button
-            className={`tab-button ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => nav("/dashboard")}
-          >
-            Dashboard
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}
-            onClick={() => nav("/logs")}
-          >
-            Expense Logs
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'audit' ? 'active' : ''}`}
-            onClick={() => nav("/audit")}
-          >
-            Audit Logs
-          </button>
-        </div>
 
         <div className="expense-form">
           <h3>Add New Expense</h3>
@@ -856,99 +857,31 @@ function Dashboard({ onProfileOpen }) {
 
         {Object.keys(summary).length > 0 && (
           <div className="chart-section">
-            <h3>📈 Spending Trend (Last 7 Days)</h3>
-            <Line 
+            <h3>� Spending Trend (Last 7 Days)</h3>
+            <Bar
               data={{
                 labels: Object.keys(summary),
                 datasets: [{
                   label: "Daily Spending (₹)",
                   data: Object.values(summary),
-                  borderColor: "#667eea",
-                  backgroundColor: "rgba(102, 126, 234, 0.2)",
-                  tension: 0.4,
-                  fill: true,
-                  pointRadius: 6,
-                  pointHoverRadius: 8,
-                  pointBackgroundColor: "#667eea",
-                  pointBorderColor: "#fff",
-                  pointBorderWidth: 2,
-                  pointHoverBackgroundColor: "#fff",
-                  pointHoverBorderColor: "#667eea",
-                  pointHoverBorderWidth: 3
+                  backgroundColor: "#667eea",
+                  barPercentage: 0.4,
+                  categoryPercentage: 0.5
                 }]
               }}
               options={{
                 responsive: true,
-                interaction: {
-                  mode: 'index',
-                  intersect: false,
-                },
                 plugins: {
-                  legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                      font: {
-                        size: 14,
-                        weight: 'bold'
-                      },
-                      color: '#333'
-                    }
-                  },
+                  legend: { display: false },
                   tooltip: {
-                    enabled: true,
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    titleColor: '#fff',
-                    bodyColor: '#fff',
-                    borderColor: '#667eea',
-                    borderWidth: 2,
-                    padding: 12,
-                    displayColors: true,
                     callbacks: {
-                      label: function(context) {
-                        return 'Spent: ₹' + context.parsed.y.toFixed(2);
-                      },
-                      title: function(context) {
-                        const date = new Date(context[0].label);
-                        return date.toLocaleDateString('en-IN', { 
-                          weekday: 'short', 
-                          year: 'numeric', 
-                          month: 'short', 
-                          day: 'numeric' 
-                        });
-                      }
+                      label: ctx => `₹${ctx.parsed.y.toFixed(2)}`
                     }
                   }
                 },
                 scales: {
-                  y: {
-                    beginAtZero: true,
-                    ticks: {
-                      callback: function(value) {
-                        return '₹' + value;
-                      },
-                      font: {
-                        size: 12
-                      }
-                    },
-                    grid: {
-                      color: 'rgba(0, 0, 0, 0.05)'
-                    }
-                  },
-                  x: {
-                    ticks: {
-                      font: {
-                        size: 12
-                      }
-                    },
-                    grid: {
-                      display: false
-                    }
-                  }
-                },
-                animation: {
-                  duration: 1000,
-                  easing: 'easeInOutQuart'
+                  y: { beginAtZero: true, ticks: { callback: v => `₹${v}` } },
+                  x: { }
                 }
               }}
             />
@@ -1107,7 +1040,7 @@ function Audit({ onProfileOpen }) {
       </div>
 
       {/* Main Navigation Tabs (Dashboard/Logs/Audit) */}
-      <div className="tab-navigation" style={{ marginBottom: 0 }}>
+      <div className="tab-navigation">
         <button
           className={`tab-button ${window.location.pathname === '/dashboard' ? 'active' : ''}`}
           onClick={() => nav('/dashboard')}
@@ -1130,7 +1063,7 @@ function Audit({ onProfileOpen }) {
 
       <div className="dashboard">
         {/* Main navigation (Dashboard/Logs/Audit) is above, so place audit/history switcher here */}
-        <div className="sub-tab-navigation" style={{ display: 'flex', gap: '12px', margin: '24px 0 16px 0', justifyContent: 'center' }}>
+        <div className="tab-navigation" style={{ marginTop: 24, marginBottom: 16, justifyContent: 'center', display: 'flex', gap: '12px' }}>
           <button
             className={`tab-button ${activeTab === 'audit' ? 'active' : ''}`}
             onClick={() => setActiveTab('audit')}
@@ -1480,27 +1413,28 @@ function Logs({ onProfileOpen }) {
         </button>
       </div>
 
+      <div className="tab-navigation">
+        <button
+          className={`tab-button ${window.location.pathname === '/dashboard' ? 'active' : ''}`}
+          onClick={() => nav('/dashboard')}
+        >
+          Dashboard
+        </button>
+        <button
+          className={`tab-button ${window.location.pathname === '/logs' ? 'active' : ''}`}
+          onClick={() => nav('/logs')}
+        >
+          Expense Logs
+        </button>
+        <button
+          className={`tab-button ${window.location.pathname === '/audit' ? 'active' : ''}`}
+          onClick={() => nav('/audit')}
+        >
+          Audit Logs
+        </button>
+      </div>
+
       <div className="dashboard">
-        <div className="tab-navigation">
-          <button
-            className={`tab-button ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => nav("/dashboard")}
-          >
-            Dashboard
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}
-            onClick={() => nav("/logs")}
-          >
-            Expense Logs
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'audit' ? 'active' : ''}`}
-            onClick={() => nav("/audit")}
-          >
-            Audit Logs
-          </button>
-        </div>
 
         {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
 
