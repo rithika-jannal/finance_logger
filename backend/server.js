@@ -19,6 +19,7 @@ const UserSchema = new mongoose.Schema({
   password: String
 });
 
+// Hash password before saving
 UserSchema.pre('save', async function (next) {
   if (this.isModified('password')) {
     this.password = await bcrypt.hash(this.password, 10);
@@ -26,6 +27,7 @@ UserSchema.pre('save', async function (next) {
   next();
 });
 
+// Compare password
 UserSchema.methods.matchPassword = function (pw) {
   return bcrypt.compareSync(pw, this.password);
 };
@@ -38,19 +40,18 @@ const ExpenseSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 });
 
-// ✅ NEW: Audit Log Schema
+// ✅ Audit Log Schema
 const AuditLogSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  userEmail: { type: String, required: true },
-  action: { 
-    type: String, 
-    enum: ['LOGIN', 'LOGOUT', 'ADD_EXPENSE', 'UPDATE_EXPENSE', 'DELETE_EXPENSE'],
-    required: true 
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  expenseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Expense' },
+  action: { type: String, enum: ['create', 'update', 'delete', 'login'], required: true },
+  changes: {
+    field: { type: String },
+    oldValue: { type: mongoose.Schema.Types.Mixed },
+    newValue: { type: mongoose.Schema.Types.Mixed }
   },
-  details: { type: mongoose.Schema.Types.Mixed },
-  ipAddress: String,
-  userAgent: String,
-  timestamp: { type: Date, default: Date.now }
+  timestamp: { type: Date, default: Date.now },
+  description: String
 });
 
 // ✅ Models
@@ -63,36 +64,26 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✅ Helper: Create Audit Log
-async function createAuditLog(userId, userEmail, action, details, req) {
-  try {
-    const log = new AuditLog({
-      userId,
-      userEmail,
-      action,
-      details,
-      ipAddress: req.ip || req.connection.remoteAddress,
-      userAgent: req.headers['user-agent']
-    });
-    await log.save();
-  } catch (e) {
-    console.error('Failed to create audit log:', e);
-  }
-}
-
-// ✅ Middleware: Auth
 function auth(req, res, next) {
   let token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.sendStatus(401);
+  if (!token) {
+    return res.sendStatus(401);
+  }
 
   try {
     let decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
     User.findById(decoded.id).then(user => {
-      if (!user) return res.sendStatus(401);
+      if (!user) {
+        return res.sendStatus(401);
+      }
       req.user = user;
       next();
+    }).catch(err => {
+      console.error("Auth error finding user:", err);
+      res.sendStatus(401);
     });
-  } catch {
+  } catch (error) {
+    console.error("Auth error verifying token:", error);
     res.sendStatus(401);
   }
 }
@@ -100,6 +91,7 @@ function auth(req, res, next) {
 // ✅ User Registration
 app.post('/api/register', async (req, res) => {
   try {
+    // Check if user already exists
     const existingUser = await User.findOne({ email: req.body.email });
     if (existingUser) {
       return res.status(400).json({ message: 'Email already exists. Please use a different email or login.' });
@@ -107,40 +99,30 @@ app.post('/api/register', async (req, res) => {
 
     let user = new User(req.body);
     await user.save();
-
-    // Registration audit log removed as requested
-    // await createAuditLog(
-    //   user._id,
-    //   user.email,
-    //   'REGISTER',
-    //   { name: user.name },
-    //   req
-    // );
-
     res.json({ message: 'Registration successful' });
-  } catch (e) {
-    console.error('Registration error:', e);
-    res.status(400).json({ message: e.code === 11000 ? 'Email already exists' : 'Registration failed' });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(400).json({ message: error.code === 11000 ? 'Email already exists' : 'Registration failed' });
   }
 });
 
-// ✅ User Logout
-app.post('/api/logout', auth, async (req, res) => {
-  try {
-    // Log logout
-    await createAuditLog(
-      req.user._id,
-      req.user.email,
-      'LOGOUT',
-      { logoutTime: new Date() },
-      req
-    );
-
-    res.json({ message: 'Logout successful' });
-  } catch (e) {
-    console.error('Logout error:', e);
-    res.status(500).json({ message: 'Logout failed' });
+// ✅ User Login
+app.post('/api/login', async (req, res) => {
+  let user = await User.findOne({ email: req.body.email });
+  if (!user || !user.matchPassword(req.body.password)) {
+    return res.status(401).json({ message: 'Invalid credentials' });
   }
+  let token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
+
+  // Create audit log for login
+  const auditLog = new AuditLog({
+    user: user._id,
+    action: 'login',
+    description: `User logged in: ${user.email}`
+  });
+  await auditLog.save();
+
+  res.json({ token });
 });
 
 // ✅ Add Expense
@@ -148,19 +130,19 @@ app.post('/api/expense', auth, async (req, res) => {
   let expense = new Expense({ ...req.body, user: req.user._id });
   await expense.save();
 
-  // Log expense addition
-  await createAuditLog(
-    req.user._id,
-    req.user.email,
-    'ADD_EXPENSE',
-    {
-      expenseId: expense._id,
-      description: expense.description,
-      amount: expense.amount,
-      date: expense.date
+  // Create audit log for creation
+  const auditLog = new AuditLog({
+    user: req.user._id,
+    expenseId: expense._id,
+    action: 'create',
+    changes: {
+      field: 'all',
+      oldValue: null,
+      newValue: { description: expense.description, amount: expense.amount, date: expense.date }
     },
-    req
-  );
+    description: `Created new expense: "${expense.description}" (₹${expense.amount})`
+  });
+  await auditLog.save();
 
   res.json(expense);
 });
@@ -173,39 +155,53 @@ app.get('/api/expense', auth, async (req, res) => {
 
 // ✅ Edit Expense
 app.put('/api/expense/:id', auth, async (req, res) => {
-  // Get old expense data before update
-  const oldExpense = await Expense.findOne({ _id: req.params.id, user: req.user._id });
-  
-  let exp = await Expense.findOneAndUpdate(
-    { _id: req.params.id, user: req.user._id },
-    req.body,
-    { new: true }
-  );
+  try {
+    // Get the original expense before updating
+    const originalExpense = await Expense.findOne({
+      _id: req.params.id,
+      user: req.user._id
+    });
 
-  if (exp && oldExpense) {
-    // Log expense update
-    await createAuditLog(
-      req.user._id,
-      req.user.email,
-      'UPDATE_EXPENSE',
-      {
-        expenseId: exp._id,
-        oldData: {
-          description: oldExpense.description,
-          amount: oldExpense.amount,
-          date: oldExpense.date
-        },
-        newData: {
-          description: exp.description,
-          amount: exp.amount,
-          date: exp.date
-        }
-      },
-      req
+    if (!originalExpense) {
+      return res.status(404).json({ message: 'Expense not found' });
+    }
+
+    // Update the expense
+    let updatedExpense = await Expense.findOneAndUpdate(
+      { _id: req.params.id, user: req.user._id },
+      req.body,
+      { new: true }
     );
-  }
 
-  res.json(exp || {});
+    // Create audit logs for each changed field
+    const fieldsToCheck = ['description', 'amount', 'date'];
+
+    for (const field of fieldsToCheck) {
+      const oldValue = originalExpense[field];
+      const newValue = updatedExpense[field];
+
+      // Only create audit log if the field was actually changed
+      if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+        const auditLog = new AuditLog({
+          user: req.user._id,
+          expenseId: req.params.id,
+          action: 'update',
+          changes: {
+            field: field,
+            oldValue: oldValue,
+            newValue: newValue
+          },
+          description: `Updated ${field} from "${oldValue}" to "${newValue}"`
+        });
+        await auditLog.save();
+      }
+    }
+
+    res.json(updatedExpense);
+  } catch (error) {
+    console.error('Error updating expense:', error);
+    res.status(500).json({ message: 'Error updating expense' });
+  }
 });
 
 // ✅ Delete Expense
@@ -215,27 +211,26 @@ app.delete('/api/expense/:id', auth, async (req, res) => {
       _id: req.params.id,
       user: req.user._id
     });
-    
     if (!exp) {
       return res.status(404).json({ message: 'Expense not found' });
     }
 
-    // Log expense deletion
-    await createAuditLog(
-      req.user._id,
-      req.user.email,
-      'DELETE_EXPENSE',
-      {
-        expenseId: exp._id,
-        description: exp.description,
-        amount: exp.amount,
-        date: exp.date
+    // Create audit log for deletion with expense info included
+    const auditLog = new AuditLog({
+      user: req.user._id,
+      expenseId: req.params.id,
+      action: 'delete',
+      changes: {
+        field: 'all',
+        oldValue: { description: exp.description, amount: exp.amount, date: exp.date },
+        newValue: null
       },
-      req
-    );
+      description: `Deleted expense: "${exp.description}" (₹${exp.amount})`
+    });
+    await auditLog.save();
 
     res.json({ message: 'Expense deleted successfully' });
-  } catch (e) {
+  } catch (error) {
     res.status(500).json({ message: 'Error deleting expense' });
   }
 });
@@ -253,71 +248,128 @@ app.get('/api/expense/summary/daily', auth, async (req, res) => {
 
   let expenses = await Expense.find({
     user: req.user._id,
-    date: { $gte: new Date(Date.now() - 6 * 24 * 3600 * 1000) }
-  });
+    date: { $gte: new Date(Date.now() - 7 * 24 * 3600 * 1000) }
+  }).select('description amount date');
 
-  let dailyTotals = {};
-  days.forEach(day => dailyTotals[day] = 0);
-
-  expenses.forEach(e => {
-    let day = e.date.toISOString().slice(0, 10);
-    if (dailyTotals[day] !== undefined) {
-      dailyTotals[day] += e.amount;
-    }
-  });
-
-  res.json(dailyTotals);
+  res.json(expenses);
 });
 
-// ✅ NEW: Get Audit Logs
+// ✅ Get Operation Counts
+app.get('/api/operation-counts', auth, async (req, res) => {
+  try {
+    const counts = await AuditLog.aggregate([
+      { $match: { user: req.user._id, action: { $ne: 'login' } } }, // Exclude login actions
+      {
+        $group: {
+          _id: '$action',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    console.log("Aggregation result:", counts); // Debug log
+
+    // Convert to the format expected by frontend
+    const result = {
+      create: 0,
+      update: 0,
+      delete: 0
+    };
+
+    counts.forEach(item => {
+      if (result.hasOwnProperty(item._id)) {
+        result[item._id] = item.count;
+      }
+    });
+
+    console.log("Final result:", result); // Debug log
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching operation counts:', error);
+    res.status(500).json({ message: 'Error fetching operation counts' });
+  }
+});
+
+// ✅ Create Audit Log (for frontend)
+app.post('/api/audit-logs', auth, async (req, res) => {
+  try {
+    const auditLog = new AuditLog({
+      user: req.user._id,
+      action: req.body.action,
+      description: req.body.description,
+      timestamp: new Date()
+    });
+    await auditLog.save();
+    res.json({ message: 'Audit log created successfully' });
+  } catch (error) {
+    console.error('Error creating audit log:', error);
+    res.status(500).json({ message: 'Error creating audit log' });
+  }
+});
+
+// ✅ Get Audit Logs
 app.get('/api/audit-logs', auth, async (req, res) => {
   try {
-    const { action, startDate, endDate, limit = 50 } = req.query;
-    
-    let query = { userId: req.user._id };
-    
-    // Filter by action type
-    if (action && action !== 'ALL') {
-      query.action = action;
-    }
-    
-    // Filter by date range
-    if (startDate || endDate) {
-      query.timestamp = {};
-      if (startDate) query.timestamp.$gte = new Date(startDate);
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        query.timestamp.$lte = end;
-      }
-    }
-    
-    const logs = await AuditLog.find(query)
-      .sort({ timestamp: -1 })
-      .limit(parseInt(limit));
-    
-    res.json(logs);
-  } catch (e) {
-    console.error('Error fetching audit logs:', e);
+    console.log("Fetching audit logs for user:", req.user._id); // Debug log
+
+    const auditLogs = await AuditLog.find({ user: req.user._id })
+      .populate('expenseId', 'description amount date')
+      .populate('user', 'name email')
+      .sort({ timestamp: -1 });
+
+    console.log("Found audit logs:", auditLogs.length); // Debug log
+    console.log("Sample audit log:", auditLogs[0]); // Debug log
+
+    res.json(auditLogs);
+  } catch (error) {
+    console.error('Error fetching audit logs:', error);
     res.status(500).json({ message: 'Error fetching audit logs' });
   }
 });
 
-// ✅ NEW: Get Audit Stats
-app.get('/api/audit-logs/stats', auth, async (req, res) => {
+// ✅ Get User Profile
+app.get('/api/user-profile', auth, async (req, res) => {
   try {
-    const stats = await AuditLog.aggregate([
-      { $match: { userId: req.user._id } },
-      { $group: { _id: '$action', count: { $sum: 1 } } }
-    ]);
-    
-    const statsObj = {};
-    stats.forEach(s => statsObj[s._id] = s.count);
-    
-    res.json(statsObj);
-  } catch (e) {
-    console.error('Error fetching audit stats:', e);
-    res.status(500).json({ message: 'Error fetching stats' });
+    console.log("User profile request for user:", req.user._id); // Debug log
+    const user = await User.findById(req.user._id).select('name email');
+    console.log("Found user:", user); // Debug log
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ message: 'Error fetching user profile' });
+  }
+});
+
+// ✅ Change Password
+app.put('/api/change-password', auth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // Verify current password
+    const user = await User.findById(req.user._id);
+    if (!user.matchPassword(currentPassword)) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    // Hash the new password before saving
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password directly in the database to avoid double hashing
+    await User.findByIdAndUpdate(
+      req.user._id,
+      { password: hashedPassword },
+      { new: true }
+    );
+
+    // Note: Not creating audit log for password changes for security reasons
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ message: 'Error changing password' });
   }
 });
 

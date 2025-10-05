@@ -6,162 +6,606 @@ import { Chart, LineElement, CategoryScale, LinearScale, PointElement, Tooltip, 
 import "./App.css";
 Chart.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend, Filler);
 
+// ----------------- API Setup -----------------
 const api = axios.create({ baseURL: "http://localhost:5001/api" });
 api.interceptors.request.use(config => {
   const token = localStorage.getItem("token");
-  if (token) config.headers.Authorization = "Bearer " + token;
+  console.log("API Request:", config.url, "Token present:", !!token);
+  if (token) {
+    config.headers.Authorization = "Bearer " + token;
+    console.log("Added auth header");
+  }
   return config;
 });
 
+api.interceptors.response.use(
+  response => {
+    console.log("API Response:", response.config.url, response.status);
+    return response;
+  },
+  error => {
+    console.error("API Error:", error.config?.url, error.response?.status, error.response?.data);
+    return Promise.reject(error);
+  }
+);
+
+// ----------------- Auth Route Guard -----------------
 function PrivateRoute({ children }) {
   return localStorage.getItem("token") ? children : <Navigate to="/login" />;
 }
 
+// ----------------- Profile Component -----------------
+function Profile({ isOpen, onClose }) {
+  const [activeTab, setActiveTab] = useState('profile');
+  const [userProfile, setUserProfile] = useState({ name: '', email: '' });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [message, setMessage] = useState({ text: '', type: '' });
+  const [loading, setLoading] = useState(false);
+  const nav = useNavigate();
+
+  // Fetch user profile details
+  const fetchUserProfile = async () => {
+    try {
+      console.log("Fetching user profile...");
+      const response = await api.get('/user-profile');
+      console.log("Profile response:", response.data);
+      setUserProfile(response.data);
+      console.log("Updated userProfile state:", response.data);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      setMessage({ text: 'Failed to load profile', type: 'error' });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'profile') {
+      fetchUserProfile();
+    }
+  }, [isOpen, activeTab]);
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("rememberedEmail");
+    onClose();
+    nav("/login");
+  };
+
+  const changePassword = async (e) => {
+    e.preventDefault();
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setMessage({ text: "New passwords don't match", type: "error" });
+      return;
+    }
+
+    setLoading(true);
+    setMessage({ text: '', type: '' });
+
+    try {
+      await api.put("/change-password", { currentPassword: passwordForm.currentPassword, newPassword: passwordForm.newPassword });
+      setMessage({ text: "Password changed successfully!", type: "success" });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setTimeout(() => {
+        setMessage({ text: '', type: '' });
+        onClose();
+      }, 1500);
+    } catch (error) {
+      setMessage({ text: error.response?.data?.message || "Failed to change password", type: "error" });
+    }
+    setLoading(false);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '16px',
+        padding: '0',
+        width: '90%',
+        maxWidth: '500px',
+        maxHeight: '80vh',
+        overflow: 'hidden',
+        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+      }}>
+        {/* Header */}
+        <div style={{
+          background: 'linear-gradient(135deg, #667eea, #764ba2)',
+          color: 'white',
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>Profile Settings</h3>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'white',
+              fontSize: '24px',
+              cursor: 'pointer',
+              padding: '0',
+              width: '32px',
+              height: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid #e2e8f0',
+          background: '#f8fafc'
+        }}>
+          <button
+            onClick={() => setActiveTab('profile')}
+            style={{
+              flex: 1,
+              padding: '16px 20px',
+              background: activeTab === 'profile' ? 'white' : 'transparent',
+              border: 'none',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: activeTab === 'profile' ? '#667eea' : '#64748b',
+              borderBottom: activeTab === 'profile' ? '3px solid #667eea' : 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Profile
+          </button>
+          <button
+            onClick={() => setActiveTab('password')}
+            style={{
+              flex: 1,
+              padding: '16px 20px',
+              background: activeTab === 'password' ? 'white' : 'transparent',
+              border: 'none',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: activeTab === 'password' ? '#667eea' : '#64748b',
+              borderBottom: activeTab === 'password' ? '3px solid #667eea' : 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Password
+          </button>
+        </div>
+
+        {/* Content */}
+        <div style={{ padding: '24px' }}>
+          {activeTab === 'profile' && (
+            <div>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#2d3748' }}>
+                  Full Name
+                </label>
+                <div style={{
+                  padding: '12px 16px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  backgroundColor: '#f8fafc',
+                  fontSize: '14px',
+                  color: '#4a5568'
+                }}>
+                  {userProfile.name || 'Loading...'}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#2d3748' }}>
+                  Email Address
+                </label>
+                <div style={{
+                  padding: '12px 16px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  backgroundColor: '#f8fafc',
+                  fontSize: '14px',
+                  color: '#4a5568'
+                }}>
+                  {userProfile.email || 'Loading...'}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={logout}
+                  style={{
+                    padding: '12px 24px',
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'password' && (
+            <form onSubmit={changePassword}>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#2d3748' }}>
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={e => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
+                  placeholder="Enter current password"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '14px'
+                  }}
+                  required
+                />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#2d3748' }}>
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={e => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                  placeholder="Enter new password"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '14px'
+                  }}
+                  required
+                  minLength="6"
+                />
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#2d3748' }}>
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={e => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                  placeholder="Confirm new password"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '14px'
+                  }}
+                  required
+                  minLength="6"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={{
+                    flex: 1,
+                    padding: '12px 24px',
+                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    opacity: loading ? 0.7 : 1
+                  }}
+                >
+                  {loading ? 'Changing...' : 'Change Password'}
+                </button>
+                <button
+                  type="button"
+                  onClick={logout}
+                  style={{
+                    padding: '12px 24px',
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Logout
+                </button>
+              </div>
+            </form>
+          )}
+
+          {message.text && (
+            <div style={{
+              marginTop: '16px',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              background: message.type === 'success' ? '#d4edda' : '#f8d7da',
+              color: message.type === 'success' ? '#155724' : '#721c24',
+              border: `1px solid ${message.type === 'success' ? '#c3e6cb' : '#f5c6cb'}`,
+              fontSize: '14px'
+            }}>
+              {message.text}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------- Register -----------------
 function Register() {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [message, setMessage] = useState({ text: "", type: "" });
-  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const nav = useNavigate();
 
   const submit = async e => {
     e.preventDefault();
+    setLoading(true);
+    setMessage({ text: "", type: "" });
+
     try {
       const response = await api.post("/register", form);
-      setMessage({ text: "✅ " + response.data.message + " Redirecting to login...", type: "success" });
+      setMessage({ text: response.data.message + " Redirecting to login...", type: "success" });
       setTimeout(() => nav("/login"), 1500);
     } catch (error) {
       const errorMsg = error.response?.data?.message || "Registration failed";
-      setMessage({ text: "⚠️ " + errorMsg, type: "error" });
+      setMessage({ text: errorMsg, type: "error" });
+      setLoading(false);
     }
   };
 
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h2>Create Account</h2>
-        <p className="subtitle">Join us to track your expenses</p>
+        <div style={{textAlign: 'center', marginBottom: '8px'}}>
+          <h2>Create Account</h2>
+          <p className="subtitle">Join us to track your expenses</p>
+        </div>
+
         <form onSubmit={submit}>
           <div className="form-group">
             <label>Full Name</label>
-            <input onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Enter your name" required />
+            <input
+              onChange={e => setForm({ ...form, name: e.target.value })}
+              value={form.name}
+              placeholder="Enter your name"
+              required
+              disabled={loading}
+            />
           </div>
           <div className="form-group">
             <label>Email Address</label>
-            <input type="email" onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Enter your email" required />
+            <input
+              type="email"
+              onChange={e => setForm({ ...form, email: e.target.value })}
+              value={form.email}
+              placeholder="Enter your email"
+              required
+              disabled={loading}
+            />
           </div>
           <div className="form-group">
             <label>Password</label>
-            <div style={{position: "relative"}}>
-              <input
-                type={showPassword ? "text" : "password"}
-                onChange={e => setForm({ ...form, password: e.target.value })}
-                placeholder="Create a password"
-                required
-                style={{paddingRight: "40px"}}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: "absolute",
-                  right: "10px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "16px",
-                  color: "#666"
-                }}
-              >
-                {showPassword ? "🙈" : "👁️"}
-              </button>
-            </div>
+            <input
+              type="password"
+              onChange={e => setForm({ ...form, password: e.target.value })}
+              value={form.password}
+              placeholder="Create a password"
+              required
+              disabled={loading}
+              minLength="6"
+            />
           </div>
-          <button className="btn-primary">Create Account</button>
+          <button
+            type="submit"
+            className={`btn-primary ${loading ? 'btn-loading' : ''}`}
+            disabled={loading || !form.name || !form.email || !form.password}
+          >
+            {loading ? '' : 'Create Account'}
+          </button>
           {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
           <div className="divider">Already have an account?</div>
-          <button type="button" className="btn-secondary" onClick={() => nav("/login")}>Sign In</button>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => nav("/login")}
+            disabled={loading}
+          >
+            Sign In
+          </button>
         </form>
       </div>
     </div>
   );
 }
 
+// ----------------- Login -----------------
 function Login() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [message, setMessage] = useState({ text: "", type: "" });
-  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const nav = useNavigate();
 
   const submit = async e => {
     e.preventDefault();
+    setLoading(true);
+    setMessage({ text: "", type: "" });
+
     try {
       let { data } = await api.post("/login", form);
       localStorage.setItem("token", data.token);
-      setMessage({ text: "✅ Login successful! Redirecting...", type: "success" });
+
+      if (rememberMe) {
+        localStorage.setItem("rememberedEmail", form.email);
+      } else {
+        localStorage.removeItem("rememberedEmail");
+      }
+
+      // Log login activity to audit logs
+      try {
+        await api.post("/audit-logs", {
+          action: "login",
+          description: `User logged in successfully`
+        });
+        console.log("Login audit log created successfully");
+      } catch (auditError) {
+        console.error("Login audit log failed:", auditError);
+      }
+
+      setMessage({ text: "Login successful! Redirecting...", type: "success" });
       setTimeout(() => nav("/dashboard"), 800);
     } catch (error) {
       const errorMsg = error.response?.data?.message || "Invalid login credentials";
-      setMessage({ text: "⚠️ " + errorMsg, type: "error" });
+      setMessage({ text: errorMsg, type: "error" });
+      setLoading(false);
     }
   };
+
+  // Load remembered email on component mount
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem("rememberedEmail");
+    if (rememberedEmail) {
+      setForm(prev => ({ ...prev, email: rememberedEmail }));
+      setRememberMe(true);
+    }
+  }, []);
 
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h2>Welcome Back</h2>
-        <p className="subtitle">Sign in to continue tracking your expenses</p>
+        <div style={{textAlign: 'center', marginBottom: '8px'}}>
+          <h2>Welcome Back</h2>
+          <p className="subtitle">Sign in to continue tracking your expenses</p>
+        </div>
+
         <form onSubmit={submit}>
           <div className="form-group">
             <label>Email Address</label>
-            <input name="email" type="email" onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Enter your email" required />
+            <input
+              name="email"
+              type="email"
+              value={form.email}
+              onChange={e => setForm({ ...form, email: e.target.value })}
+              placeholder="Enter your email"
+              required
+              disabled={loading}
+            />
           </div>
+
           <div className="form-group">
             <label>Password</label>
-            <div style={{position: "relative"}}>
-              <input
-                name="password"
-                type={showPassword ? "text" : "password"}
-                onChange={e => setForm({ ...form, password: e.target.value })}
-                placeholder="Enter your password"
-                required
-                style={{paddingRight: "40px"}}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: "absolute",
-                  right: "10px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "16px",
-                  color: "#666"
-                }}
-              >
-                {showPassword ? "🙈" : "👁️"}
-              </button>
-            </div>
+            <input
+              name="password"
+              type="password"
+              value={form.password}
+              onChange={e => setForm({ ...form, password: e.target.value })}
+              placeholder="Enter your password"
+              required
+              disabled={loading}
+            />
           </div>
-          <button type="submit" className="btn-primary">Sign In</button>
+
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px'}}>
+            <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', color: '#4a5568'}}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                disabled={loading}
+                style={{marginRight: '8px'}}
+              />
+              Remember me
+            </label>
+            <button
+              type="button"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#667eea',
+                cursor: 'pointer',
+                fontSize: '14px',
+                textDecoration: 'underline'
+              }}
+              disabled={loading}
+            >
+              Forgot Password?
+            </button>
+          </div>
+
+          <button
+            type="submit"
+            className={`btn-primary ${loading ? 'btn-loading' : ''}`}
+            disabled={loading || !form.email || !form.password}
+          >
+            {loading ? '' : 'Sign In'}
+          </button>
+
           {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
+
           <div className="divider">Don't have an account?</div>
-          <button type="button" className="btn-secondary" onClick={() => nav("/register")}>Create Account</button>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => nav("/register")}
+            disabled={loading}
+          >
+            Create Account
+          </button>
         </form>
       </div>
     </div>
   );
 }
 
-function Dashboard() {
+// ----------------- Dashboard -----------------
+function Dashboard({ onProfileOpen }) {
   const [expenses,setExpenses] = useState([]);
+  const [edit,setEdit] = useState(null);
   const [form,setForm] = useState({description:"",amount:"",date:new Date().toISOString().split('T')[0]});
+  const [editForm,setEditForm] = useState({description:"",amount:""});
   const [message,setMessage] = useState({ text: "", type: "" });
   const [summary,setSummary] = useState({});
+  const [activeTab, setActiveTab] = useState('dashboard');
   const nav = useNavigate();
 
   const fetchAll = async () => {
@@ -174,7 +618,7 @@ function Dashboard() {
         last7days[d] = (last7days[d] || 0) + exp.amount;
       });
       setSummary(last7days);
-    } catch {
+    } catch (error) {
       setMessage({ text: "⚠️ Failed to fetch expenses", type: "error" });
     }
   };
@@ -183,46 +627,138 @@ function Dashboard() {
 
   const submit = async e => {
     e.preventDefault();
+
+    // Basic validation
+    if (!form.description.trim() || !form.amount || !form.date) {
+      setMessage({ text: "❌ Please fill all fields", type: "error" });
+      return;
+    }
+
+    if (form.amount <= 0) {
+      setMessage({ text: "❌ Amount must be greater than 0", type: "error" });
+      return;
+    }
+
+    console.log("Submitting expense:", form); // Debug log
+
     try {
-      await api.post("/expense", form);
-      setForm({description:"",amount:"",date:new Date().toISOString().split('T')[0]}); 
+      const response = await api.post("/expense", form);
+      console.log("Expense created successfully:", response.data); // Debug log
+
+      setForm({description:"",amount:"",date:new Date().toISOString().split('T')[0]});
       setMessage({ text: "✅ Expense added successfully!", type: "success" });
       setTimeout(() => setMessage({ text: "", type: "" }), 3000);
       fetchAll();
-    } catch { 
-      setMessage({ text: "❌ Error adding expense", type: "error" }); 
+    } catch (error) {
+      console.error("Error creating expense:", error); // Debug log
+      const errorMsg = error.response?.data?.message || "❌ Error adding expense";
+      setMessage({ text: errorMsg, type: "error" });
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    nav("/login");
+  const startEdit = exp => {
+    setEdit(exp._id);
+    setEditForm({description:exp.description, amount:exp.amount});
+  };
+  
+  const saveEdit = async e => {
+    e.preventDefault();
+
+    // Basic validation
+    if (!editForm.description.trim() || !editForm.amount) {
+      setMessage({ text: "❌ Please fill all fields", type: "error" });
+      return;
+    }
+
+    if (editForm.amount <= 0) {
+      setMessage({ text: "❌ Amount must be greater than 0", type: "error" });
+      return;
+    }
+
+    console.log("Updating expense:", editForm); // Debug log
+
+    try {
+      await api.put(`/expense/${edit}`, editForm);
+      setEdit(null);
+      setMessage({ text: "✅ Expense updated!", type: "success" });
+      setTimeout(() => setMessage({ text: "", type: "" }), 3000);
+      fetchAll();
+    } catch (error) {
+      console.error("Error updating expense:", error); // Debug log
+      const errorMsg = error.response?.data?.message || "❌ Error updating expense";
+      setMessage({ text: errorMsg, type: "error" });
+    }
+  };
+
+  const deleteExp = async id => {
+    if(window.confirm("Are you sure you want to delete this expense?")) {
+      await api.delete(`/expense/${id}`);
+      setMessage({ text: "✅ Expense deleted", type: "success" });
+      setTimeout(() => setMessage({ text: "", type: "" }), 3000);
+      fetchAll();
+    }
   };
 
   const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
 
   return (
     <div className="container">
+      {/* Main Header */}
+      <div className="main-header">
+        <div className="app-title">
+          <h1>Expense Tracker</h1>
+          <p>Track your expenses effortlessly</p>
+        </div>
+        <button className="profile-icon-btn" onClick={onProfileOpen}>
+          <span className="profile-icon">👤</span>
+        </button>
+      </div>
+
       <div className="dashboard">
-        <div className="dashboard-header">
-          <div>
-            <h2>💰 Expense Tracker</h2>
-            <p style={{color: "#666", marginTop: "5px"}}>Total Spent: ₹{totalExpenses.toFixed(2)}</p>
-          </div>
-          <div style={{display: "flex", gap: "10px"}}>
-            <button className="btn-nav" onClick={() => nav("/expense-logs")}>View Expenses</button>
-            <button className="btn-nav" onClick={() => nav("/audit-logs")}>Audit Logs</button>
-            <button className="btn-logout" onClick={logout}>Logout</button>
-          </div>
+        <div className="tab-navigation">
+          <button
+            className={`tab-button ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => nav("/dashboard")}
+          >
+            Dashboard
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}
+            onClick={() => nav("/logs")}
+          >
+            Expense Logs
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'audit' ? 'active' : ''}`}
+            onClick={() => nav("/audit")}
+          >
+            Audit Logs
+          </button>
         </div>
 
         <div className="expense-form">
           <h3>Add New Expense</h3>
           <form onSubmit={submit}>
             <div className="form-row">
-              <input onChange={e=>setForm({...form,description:e.target.value})} value={form.description} placeholder="Description (e.g., Groceries)" required />
-              <input type="number" onChange={e=>setForm({...form,amount:+e.target.value})} value={form.amount} placeholder="Amount (₹)" required />
-              <input type="date" onChange={e=>setForm({...form,date:e.target.value})} value={form.date} required />
+              <input 
+                onChange={e=>setForm({...form,description:e.target.value})} 
+                value={form.description} 
+                placeholder="Description (e.g., Groceries)" 
+                required 
+              />
+              <input 
+                type="number" 
+                onChange={e=>setForm({...form,amount:+e.target.value})} 
+                value={form.amount} 
+                placeholder="Amount (₹)" 
+                required 
+              />
+              <input 
+                type="date" 
+                onChange={e=>setForm({...form,date:e.target.value})} 
+                value={form.date} 
+                required 
+              />
               <button className="btn-add">Add Expense</button>
             </div>
           </form>
@@ -254,9 +790,22 @@ function Dashboard() {
               }}
               options={{
                 responsive: true,
-                interaction: { mode: 'index', intersect: false },
+                interaction: {
+                  mode: 'index',
+                  intersect: false,
+                },
                 plugins: {
-                  legend: { display: true, position: 'top', labels: { font: { size: 14, weight: 'bold' }, color: '#333' } },
+                  legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                      font: {
+                        size: 14,
+                        weight: 'bold'
+                      },
+                      color: '#333'
+                    }
+                  },
                   tooltip: {
                     enabled: true,
                     backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -265,17 +814,53 @@ function Dashboard() {
                     borderColor: '#667eea',
                     borderWidth: 2,
                     padding: 12,
+                    displayColors: true,
                     callbacks: {
-                      label: ctx => 'Spent: ₹' + ctx.parsed.y.toFixed(2),
-                      title: ctx => new Date(ctx[0].label).toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+                      label: function(context) {
+                        return 'Spent: ₹' + context.parsed.y.toFixed(2);
+                      },
+                      title: function(context) {
+                        const date = new Date(context[0].label);
+                        return date.toLocaleDateString('en-IN', { 
+                          weekday: 'short', 
+                          year: 'numeric', 
+                          month: 'short', 
+                          day: 'numeric' 
+                        });
+                      }
                     }
                   }
                 },
                 scales: {
-                  y: { beginAtZero: true, ticks: { callback: v => '₹' + v, font: { size: 12 } }, grid: { color: 'rgba(0, 0, 0, 0.05)' } },
-                  x: { ticks: { font: { size: 12 } }, grid: { display: false } }
+                  y: {
+                    beginAtZero: true,
+                    ticks: {
+                      callback: function(value) {
+                        return '₹' + value;
+                      },
+                      font: {
+                        size: 12
+                      }
+                    },
+                    grid: {
+                      color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                  },
+                  x: {
+                    ticks: {
+                      font: {
+                        size: 12
+                      }
+                    },
+                    grid: {
+                      display: false
+                    }
+                  }
                 },
-                animation: { duration: 1000, easing: 'easeInOutQuart' }
+                animation: {
+                  duration: 1000,
+                  easing: 'easeInOutQuart'
+                }
               }}
             />
           </div>
@@ -285,365 +870,247 @@ function Dashboard() {
   );
 }
 
-function ExpenseLogs() {
-  const [expenses, setExpenses] = useState([]);
-  const [edit, setEdit] = useState(null);
-  const [editForm, setEditForm] = useState({description:"", amount:"", date:""});
+// ----------------- Audit Logs Page -----------------
+function Audit({ onProfileOpen }) {
+  const [auditLogs, setAuditLogs] = useState([]);
   const [message, setMessage] = useState({ text: "", type: "" });
-  const [filterDate, setFilterDate] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [filterAction, setFilterAction] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [operationCounts, setOperationCounts] = useState({ create: 0, update: 0, delete: 0 });
+  const [activeTab, setActiveTab] = useState('audit');
   const nav = useNavigate();
 
-  const fetchAll = async () => {
+  const fetchAuditLogs = async () => {
     try {
-      let { data } = await api.get("/expense");
-      setExpenses(data);
-    } catch {
-      setMessage({ text: "⚠️ Failed to fetch expenses", type: "error" });
+      let { data } = await api.get("/audit-logs");
+      console.log("Fetched audit logs:", data); // Debug log
+      setAuditLogs(data);
+    } catch (error) {
+      setMessage({ text: "⚠️ Failed to fetch audit logs", type: "error" });
     }
   };
 
-  useEffect(() => { fetchAll(); }, []);
-
-  const startEdit = exp => {
-    setEdit(exp._id);
-    setEditForm({ description: exp.description, amount: exp.amount, date: new Date(exp.date).toISOString().split('T')[0] });
-  };
-
-  const saveEdit = async e => {
-    e.preventDefault();
+  const fetchOperationCounts = async () => {
     try {
-      await api.put(`/expense/${edit}`, editForm);
-      setEdit(null);
-      setMessage({ text: "✅ Expense updated!", type: "success" });
-      setTimeout(() => setMessage({ text: "", type: "" }), 3000);
-      fetchAll();
-    } catch {
-      setMessage({ text: "❌ Error updating expense", type: "error" });
+      console.log("Fetching operation counts from API...");
+      let { data } = await api.get("/operation-counts");
+      console.log("API response:", data);
+      setOperationCounts(data);
+    } catch (error) {
+      console.error("API failed, calculating from audit logs:", error);
+      calculateCountsFromAuditLogs();
     }
   };
 
-  const deleteExp = async id => {
-    if(window.confirm("Are you sure you want to delete this expense?")) {
-      try {
-        await api.delete(`/expense/${id}`);
-        setMessage({ text: "✅ Expense deleted", type: "success" });
-        setTimeout(() => setMessage({ text: "", type: "" }), 3000);
-        fetchAll();
-      } catch {
-        setMessage({ text: "❌ Error deleting expense", type: "error" });
+  const calculateCountsFromAuditLogs = () => {
+    try {
+      console.log("Calculating counts from audit logs...");
+      console.log("Audit logs available:", auditLogs.length);
+
+      const counts = { create: 0, update: 0, delete: 0 };
+
+      if (auditLogs && auditLogs.length > 0) {
+        auditLogs.forEach(log => {
+          console.log("Processing log:", log.action, log);
+          if (counts.hasOwnProperty(log.action)) {
+            counts[log.action]++;
+          }
+        });
       }
+
+      console.log("Calculated counts:", counts);
+      setOperationCounts(counts);
+    } catch (error) {
+      console.error("Failed to calculate counts from audit logs:", error);
+      setOperationCounts({ create: 0, update: 0, delete: 0 });
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    nav("/login");
-  };
+  useEffect(() => {
+    fetchAuditLogs();
+    fetchOperationCounts();
+  }, []);
 
-  const filteredExpenses = expenses.filter(exp => {
-    const matchesSearch = exp.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDate = filterDate ? new Date(exp.date).toISOString().split('T')[0] === filterDate : true;
-    return matchesSearch && matchesDate;
+  // Refresh audit logs when component becomes active (user navigates to audit page)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchAuditLogs();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleFocus);
+    return () => document.removeEventListener('visibilitychange', handleFocus);
+  }, []);
+
+  // Recalculate counts when audit logs are updated
+  useEffect(() => {
+    if (auditLogs.length > 0) {
+      calculateCountsFromAuditLogs();
+    }
+  }, [auditLogs]);
+
+  // Filter audit logs by action type and date range
+  const filteredLogs = auditLogs.filter(log => {
+    // Exclude login actions from display
+    if (log.action === 'login') return false;
+
+    // Filter by action type
+    const matchesAction = filterAction === "all" || log.action === filterAction;
+
+    // Filter by date range
+    const logDate = new Date(log.timestamp);
+    const logDateString = logDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+
+    const matchesFromDate = !fromDate || logDateString >= fromDate;
+    const matchesToDate = !toDate || logDateString <= toDate;
+
+    return matchesAction && matchesFromDate && matchesToDate;
   });
 
-  const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+  console.log("Filtered logs:", filteredLogs); // Debug log
+
+  const formatValue = (value) => {
+    if (value === null || value === undefined) return "N/A";
+    if (typeof value === 'object' && value.date) {
+      return new Date(value.date).toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    }
+    if (typeof value === 'number') return `₹${value.toFixed(2)}`;
+    if (typeof value === 'string' && value.trim() === '') return "N/A";
+    return String(value);
+  };
+
+  const getActionIcon = (action) => {
+    switch (action) {
+      case 'create': return 'CREATE';
+      case 'update': return 'UPDATE';
+      case 'delete': return 'DELETE';
+      case 'login': return 'LOGIN';
+      default: return 'ACTION';
+    }
+  };
 
   return (
     <div className="container">
+      {/* Main Header */}
+      <div className="main-header">
+        <div className="app-title">
+          <h1>Expense Tracker</h1>
+          <p>Track your expenses effortlessly</p>
+        </div>
+        <button className="profile-icon-btn" onClick={onProfileOpen}>
+          <span className="profile-icon">👤</span>
+        </button>
+      </div>
+
       <div className="dashboard">
-        <div className="dashboard-header">
-          <div>
-            <h2>📋 Expense Logs</h2>
-            <p style={{color: "#666", marginTop: "5px"}}>Total: ₹{totalExpenses.toFixed(2)} ({filteredExpenses.length} expenses)</p>
-          </div>
-          <div style={{display: "flex", gap: "10px"}}>
-            <button className="btn-nav" onClick={() => nav("/dashboard")}>Dashboard</button>
-            <button className="btn-nav" onClick={() => nav("/audit-logs")}>Audit Logs</button>
-            <button className="btn-logout" onClick={logout}>Logout</button>
+        <div className="tab-navigation">
+          <button
+            className={`tab-button ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => nav("/dashboard")}
+          >
+            Dashboard
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}
+            onClick={() => nav("/logs")}
+          >
+            Expense Logs
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'audit' ? 'active' : ''}`}
+            onClick={() => nav("/audit")}
+          >
+            Audit Logs
+          </button>
+        </div>
+
+        {/* Operation Counts Boxes */}
+        <div className="counts-overview">
+          <div className="counts-grid-overview">
+            <div className="count-card-overview create-box">
+              <div className="count-info">
+                <div className="count-number">{operationCounts.create}</div>
+                <div className="count-label">Created</div>
+              </div>
+            </div>
+            <div className="count-card-overview update-box">
+              <div className="count-info">
+                <div className="count-number">{operationCounts.update}</div>
+                <div className="count-label">Updated</div>
+              </div>
+            </div>
+            <div className="count-card-overview delete-box">
+              <div className="count-info">
+                <div className="count-number">{operationCounts.delete}</div>
+                <div className="count-label">Deleted</div>
+              </div>
+            </div>
           </div>
         </div>
 
+        {/* Filter Controls */}
         <div className="filters-section">
-          <input type="text" placeholder="🔍 Search by description..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="filter-input" />
-          <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} className="filter-input" />
-          {(searchTerm || filterDate) && (
-            <button className="btn-clear-filter" onClick={() => {setSearchTerm(""); setFilterDate("");}}>Clear Filters</button>
+          <div className="filter-group">
+            <label>Filter by Action:</label>
+            <select
+              value={filterAction}
+              onChange={e => setFilterAction(e.target.value)}
+              className="filter-select"
+            >
+              <option value="all">All Actions</option>
+              <option value="create">Created</option>
+              <option value="update">Updated</option>
+              <option value="delete">Deleted</option>
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label>From Date:</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={e => setFromDate(e.target.value)}
+              className="filter-input"
+              style={{maxWidth: "150px"}}
+            />
+          </div>
+
+          <div className="filter-group">
+            <label>To Date:</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={e => setToDate(e.target.value)}
+              className="filter-input"
+              style={{maxWidth: "150px"}}
+            />
+          </div>
+
+          {(filterAction !== "all" || fromDate || toDate) && (
+            <button
+              className="btn-clear-filter"
+              onClick={() => {setFilterAction("all"); setFromDate(""); setToDate("");}}>
+              Clear Filters
+            </button>
           )}
         </div>
 
         {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
 
-        <div className="expenses-section">
-          {filteredExpenses.length === 0 ? (
+        {/* Audit Logs Table */}
+        <div className="audit-section">
+          {filteredLogs.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-state-icon">📊</div>
-              <div className="empty-state-text">{expenses.length === 0 ? "No expenses yet. Go to Dashboard to add expenses!" : "No expenses match your filters."}</div>
-            </div>
-          ) : (
-            <ul className="expense-list">
-              {filteredExpenses.map(exp => (
-                <li key={exp._id} className="expense-item">
-                  {edit === exp._id ? (
-                    <form className="edit-form" onSubmit={saveEdit}>
-                      <input value={editForm.description} onChange={e=>setEditForm({...editForm,description:e.target.value})} placeholder="Description" required />
-                      <input type="number" value={editForm.amount} onChange={e=>setEditForm({...editForm,amount:+e.target.value})} placeholder="Amount" required />
-                      <input type="date" value={editForm.date} onChange={e=>setEditForm({...editForm,date:e.target.value})} required />
-                      <button type="submit" className="btn-save">Save</button>
-                      <button type="button" className="btn-cancel" onClick={()=>setEdit(null)}>Cancel</button>
-                    </form>
-                  ) : (
-                    <>
-                      <div className="expense-info">
-                        <div className="expense-description">{exp.description}</div>
-                        <div className="expense-amount">₹{exp.amount.toFixed(2)}</div>
-                        <div className="expense-date">{new Date(exp.date).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
-                      </div>
-                      <div className="expense-actions">
-                        <button className="btn-edit" onClick={()=>startEdit(exp)}>Edit</button>
-                        <button className="btn-delete" onClick={()=>deleteExp(exp._id)}>Delete</button>
-                      </div>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AuditLogs() {
-  const [logs, setLogs] = useState([]);
-  const [stats, setStats] = useState({});
-  const [filterAction, setFilterAction] = useState("ALL");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [loading, setLoading] = useState(true);
-  const nav = useNavigate();
-
-  const fetchLogs = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (filterAction !== "ALL") params.append("action", filterAction);
-      if (startDate) params.append("startDate", startDate);
-      if (endDate) params.append("endDate", endDate);
-      const { data } = await api.get(`/audit-logs?${params.toString()}`);
-      setLogs(data);
-    } catch (error) {
-      console.error("Failed to fetch audit logs:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStats = async () => {
-    try {
-      const { data } = await api.get("/audit-logs/stats");
-      setStats(data);
-    } catch (error) {
-      console.error("Failed to fetch stats:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchLogs();
-    fetchStats();
-  }, [filterAction, startDate, endDate]);
-
-  const logout = async () => {
-    const token = localStorage.getItem("token");
-
-    if (token) {
-      try {
-        // Create axios instance with token for logout call
-        const logoutApi = axios.create({
-          baseURL: "http://localhost:5001/api",
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        // Make logout API call first
-        await logoutApi.post("/logout");
-        console.log("Logout logged successfully");
-      } catch (error) {
-        console.error("Logout API error:", error);
-        // Continue with logout even if API fails
-      }
-    }
-
-    // Clear token and redirect after API call
-    localStorage.removeItem("token");
-    nav("/login");
-  };
-
-  const clearFilters = () => {
-    setFilterAction("ALL");
-    setStartDate("");
-    setEndDate("");
-  };
-
-  const getActionColor = (action) => {
-    const colors = { LOGIN: "#17a2b8", ADD_EXPENSE: "#667eea", UPDATE_EXPENSE: "#ffc107", DELETE_EXPENSE: "#dc3545" };
-    return colors[action] || "#6c757d";
-  };
-
-  const getActionIcon = (action) => {
-    const icons = { LOGIN: "🔐", ADD_EXPENSE: "➕", UPDATE_EXPENSE: "✏️", DELETE_EXPENSE: "🗑️" };
-    return icons[action] || "📝";
-  };
-
-  const getActionDisplayName = (action) => {
-    const displayNames = {
-      'LOGIN': 'Login',
-      'ADD_EXPENSE': 'Add',
-      'UPDATE_EXPENSE': 'Edit',
-      'DELETE_EXPENSE': 'Delete'
-    };
-    return displayNames[action] || action.replace(/_/g, " ");
-  };
-
-  const getChangedFrom = (action, details) => {
-    if (!details) return "-";
-    switch (action) {
-      case "UPDATE_EXPENSE":
-        if (details.oldData) {
-          return `${details.oldData.description} (₹${details.oldData.amount})`;
-        }
-        return "-";
-      case "LOGIN":
-        return "-"; // Show hyphen for empty login fields
-      case "ADD_EXPENSE":
-        return "No expense";
-      case "DELETE_EXPENSE":
-        return `${details.description} (₹${details.amount})`;
-      default:
-        return "-";
-    }
-  };
-
-  const getChangedTo = (action, details) => {
-    if (!details) return "-";
-    switch (action) {
-      case "UPDATE_EXPENSE":
-        if (details.newData) {
-          return `${details.newData.description} (₹${details.newData.amount})`;
-        }
-        return "-";
-      case "LOGIN":
-        return "-"; // Show hyphen for empty login fields
-      case "ADD_EXPENSE":
-        return `${details.description} (₹${details.amount})`;
-      case "DELETE_EXPENSE":
-        return "Deleted";
-      default:
-        return "-";
-    }
-  };
-
-  return (
-    <div className="container">
-      <div className="dashboard">
-        <div className="dashboard-header">
-          <div>
-            <h2>🔍 Audit Logs</h2>
-            <p style={{color: "#666", marginTop: "5px"}}>Track all account activities</p>
-          </div>
-          <div style={{display: "flex", gap: "10px"}}>
-            <button className="btn-nav" onClick={() => nav("/dashboard")}>Dashboard</button>
-            <button className="btn-nav" onClick={() => nav("/expense-logs")}>Expenses</button>
-            <button className="btn-logout" onClick={logout}>Logout</button>
-          </div>
-        </div>
-
-        <div className="stats-grid">
-          <div className="stat-card" style={{background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"}}>
-            <div className="stat-value">{logs.length}</div>
-            <div className="stat-label">Total Activities</div>
-          </div>
-          <div className="stat-card" style={{background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"}}>
-            <div className="stat-value">{stats.ADD_EXPENSE || 0}</div>
-            <div className="stat-label">Expenses Added</div>
-          </div>
-          <div className="stat-card" style={{background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"}}>
-            <div className="stat-value">{stats.UPDATE_EXPENSE || 0}</div>
-            <div className="stat-label">Expenses Edited</div>
-          </div>
-          <div className="stat-card" style={{background: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"}}>
-            <div className="stat-value">{stats.LOGIN || 0}</div>
-            <div className="stat-label">Login Sessions</div>
-          </div>
-        </div>
-
-        <div className="filters-section">
-          {/* Date Range Filters */}
-          <div className="date-filters">
-            <label className="filter-label">Date Range:</label>
-            <div className="filter-buttons">
-              <button
-                className={`filter-btn ${!startDate && !endDate ? "active" : ""}`}
-                onClick={() => { setStartDate(""); setEndDate(""); }}
-              >
-                All Time
-              </button>
-              <button
-                className={`filter-btn ${startDate === new Date().toISOString().split('T')[0] && !endDate ? "active" : ""}`}
-                onClick={() => { setStartDate(new Date().toISOString().split('T')[0]); setEndDate(""); }}
-              >
-                Today
-              </button>
-              <button
-                className={`filter-btn ${startDate === new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] && !endDate ? "active" : ""}`}
-                onClick={() => { setStartDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]); setEndDate(""); }}
-              >
-                This Week
-              </button>
-              <button
-                className={`filter-btn ${startDate === new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] && !endDate ? "active" : ""}`}
-                onClick={() => { setStartDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]); setEndDate(""); }}
-              >
-                This Month
-              </button>
-            </div>
-          </div>
-
-          {/* Advanced Filters */}
-          <div className="advanced-filters">
-            <div className="filter-group">
-              <label className="filter-label">Action:</label>
-              <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="filter-input">
-                <option value="ALL">All Actions</option>
-                <option value="LOGIN">Login</option>
-                <option value="ADD_EXPENSE">Add</option>
-                <option value="UPDATE_EXPENSE">Edit</option>
-                <option value="DELETE_EXPENSE">Delete</option>
-              </select>
-            </div>
-            <div className="filter-group">
-              <label className="filter-label">From:</label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="filter-input" />
-            </div>
-            <div className="filter-group">
-              <label className="filter-label">To:</label>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="filter-input" />
-            </div>
-          </div>
-
-          {/* Clear Filters */}
-          {(filterAction !== "ALL" || startDate || endDate) && (
-            <button className="btn-clear-filter" onClick={clearFilters}>Clear All Filters</button>
-          )}
-        </div>
-
-        <div className="audit-logs-section">
-          {loading ? (
-            <div className="empty-state"><div className="empty-state-text">Loading audit logs...</div></div>
-          ) : logs.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">📋</div>
-              <div className="empty-state-text">No audit logs found</div>
+              <div className="empty-state-icon">Chart</div>
+              <div className="empty-state-text">
+                {auditLogs.length === 0 ? "No audit logs yet. Start adding/editing expenses to see changes here!" : "No logs match your filter."}
+              </div>
             </div>
           ) : (
             <div className="audit-table-container">
@@ -651,24 +1118,99 @@ function AuditLogs() {
                 <thead>
                   <tr>
                     <th>Action</th>
-                    <th>User</th>
-                    <th>Field Changed From</th>
+                    <th>Item</th>
+                    <th>Changed From</th>
                     <th>Changed To</th>
-                    <th>Date/Time</th>
+                    <th>Date</th>
+                    <th>Entry Date Time</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {logs.map((log, index) => (
-                    <tr key={log._id || index}>
+                  {filteredLogs.map(log => (
+                    <tr key={log._id}>
                       <td>
-                        <span className="action-badge" style={{background: getActionColor(log.action)}}>
-                          {getActionIcon(log.action)} {getActionDisplayName(log.action)}
+                        <span className={`action-badge ${log.action}`}>
+                          {getActionIcon(log.action)}
                         </span>
                       </td>
-                      <td>{log.userEmail}</td>
-                      <td>{getChangedFrom(log.action, log.details)}</td>
-                      <td>{getChangedTo(log.action, log.details)}</td>
-                      <td>{new Date(log.timestamp).toLocaleString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+                      <td>
+                        {log.action === 'create' ? (
+                          <div className="expense-info-cell">
+                            <div className="expense-title-cell">
+                              {log.expenseId?.description || (log.changes?.newValue && typeof log.changes.newValue === 'object' ? log.changes.newValue.description : null) || 'N/A'}
+                            </div>
+                            <div className="expense-amount-cell">
+                              {log.expenseId?.amount ? `₹${log.expenseId.amount.toFixed(2)}` : `₹${(log.changes?.oldValue && typeof log.changes.oldValue === 'object' ? log.changes.oldValue.amount : log.changes?.newValue?.amount || 0).toFixed(2)}`}
+                            </div>
+                          </div>
+                        ) : log.action === 'update' ? (
+                          <div className="field-update-info">
+                            <div className="field-name">
+                              {log.changes?.field || 'N/A'}
+                            </div>
+                            <div className="field-value">
+                              {log.changes?.field === 'amount' && log.changes?.newValue ?
+                                `₹${typeof log.changes.newValue === 'number' ? log.changes.newValue.toFixed(2) : log.changes.newValue}` :
+                                formatValue(log.changes?.newValue)}
+                            </div>
+                          </div>
+                        ) : log.action === 'delete' ? (
+                          <div className="expense-info-cell">
+                            <div className="expense-title-cell">
+                              {log.expenseId?.description ||
+                               (log.changes?.oldValue && typeof log.changes.oldValue === 'object' ? log.changes.oldValue.description : null) ||
+                               'N/A'}
+                            </div>
+                            <div className="expense-amount-cell">
+                              {log.expenseId?.amount ? `₹${log.expenseId.amount.toFixed(2)}` : `₹${(log.changes?.oldValue && typeof log.changes.oldValue === 'object' ? log.changes.oldValue.amount : null) || 0}.00`}
+                            </div>
+                          </div>
+                        ) : (
+                          log.changes?.field || 'N/A'
+                        )}
+                      </td>
+                      <td>
+                        <span className="change-value old-value">
+                          {(log.action === 'create' || log.action === 'login') ? '-' :
+                           log.changes?.field === 'all' ?
+                             formatValue(log.changes?.oldValue) :
+                             log.changes?.oldValue ?
+                               (typeof log.changes.oldValue === 'object' ?
+                                 `${log.changes.field}: ${formatValue(log.changes.oldValue)}` :
+                                 formatValue(log.changes.oldValue)) :
+                               'N/A'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="change-value new-value">
+                          {(log.action === 'create' || log.action === 'login') ? '-' :
+                           log.changes?.field === 'all' ?
+                             formatValue(log.changes?.newValue) :
+                             log.changes?.newValue ?
+                               (typeof log.changes.newValue === 'object' ?
+                                 `${log.changes.field}: ${formatValue(log.changes.newValue)}` :
+                                 formatValue(log.changes.newValue)) :
+                               'N/A'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="timestamp">
+                          {new Date(log.timestamp).toLocaleDateString('en-IN', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="timestamp-time">
+                          {new Date(log.timestamp).toLocaleTimeString('en-IN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                          })}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -680,18 +1222,216 @@ function AuditLogs() {
     </div>
   );
 }
+// ----------------- Expense Logs Page -----------------
+function Logs({ onProfileOpen }) {
+  const [expenses, setExpenses] = useState([]);
+  const [edit, setEdit] = useState(null);
+  const [editForm, setEditForm] = useState({description:"", amount:"", date:""});
+  const [message, setMessage] = useState({ text: "", type: "" });
+  const [filterDate, setFilterDate] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState('logs');
+  const nav = useNavigate();
 
+  const fetchAll = async () => {
+    try {
+      let { data } = await api.get("/expense");
+      setExpenses(data);
+    } catch (error) {
+      setMessage({ text: "⚠️ Failed to fetch expenses", type: "error" });
+    }
+  };
+
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  const startEdit = exp => {
+    setEdit(exp._id);
+    setEditForm({
+      description: exp.description, 
+      amount: exp.amount,
+      date: new Date(exp.date).toISOString().split('T')[0]
+    });
+  };
+
+  const saveEdit = async e => {
+    e.preventDefault();
+    try {
+      await api.put(`/expense/${edit}`, editForm);
+      setEdit(null);
+      setMessage({ text: "Expense updated!", type: "success" });
+      setTimeout(() => setMessage({ text: "", type: "" }), 3000);
+      fetchAll();
+    } catch {
+      setMessage({ text: "Error updating expense", type: "error" });
+    }
+  };
+
+  const deleteExp = async id => {
+    if(window.confirm("Are you sure you want to delete this expense?")) {
+      try {
+        await api.delete(`/expense/${id}`);
+        setMessage({ text: "Expense deleted", type: "success" });
+        setTimeout(() => setMessage({ text: "", type: "" }), 3000);
+        fetchAll();
+      } catch {
+        setMessage({ text: "Error deleting expense", type: "error" });
+      }
+    }
+  };
+
+  const filteredExpenses = expenses.filter(exp => {
+    // Filter by search term
+    const matchesSearch = !searchTerm || exp.description.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Filter by date
+    const matchesDate = !filterDate || new Date(exp.date).toISOString().split('T')[0] === filterDate;
+
+    return matchesSearch && matchesDate;
+  });
+
+  const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+  return (
+    <div className="container">
+      {/* Main Header */}
+      <div className="main-header">
+        <div className="app-title">
+          <h1>Expense Tracker</h1>
+          <p>Track your expenses effortlessly</p>
+        </div>
+        <button className="profile-icon-btn" onClick={onProfileOpen}>
+          <span className="profile-icon">👤</span>
+        </button>
+      </div>
+
+      <div className="dashboard">
+        <div className="tab-navigation">
+          <button
+            className={`tab-button ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => nav("/dashboard")}
+          >
+            Dashboard
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}
+            onClick={() => nav("/logs")}
+          >
+            Expense Logs
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'audit' ? 'active' : ''}`}
+            onClick={() => nav("/audit")}
+          >
+            Audit Logs
+          </button>
+        </div>
+
+        {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
+
+        {/* Filters */}
+        <div className="filters-section">
+          <input
+            type="text"
+            placeholder="Search by description..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="filter-input"
+          />
+          <input
+            type="date"
+            value={filterDate}
+            onChange={e => setFilterDate(e.target.value)}
+            className="filter-input"
+          />
+          {(searchTerm || filterDate) && (
+            <button
+              className="btn-clear-filter"
+              onClick={() => {setSearchTerm(""); setFilterDate("");}}>
+              Clear Filters
+            </button>
+          )}
+        </div>
+
+        {/* Expenses List */}
+        <div className="expenses-section">
+          {filteredExpenses.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">Chart</div>
+              <div className="empty-state-text">
+                {expenses.length === 0 ? "No expenses yet. Go to Dashboard to add expenses!" : "No expenses match your filters."}
+              </div>
+            </div>
+          ) : (
+            <ul className="expense-list">
+              {filteredExpenses.map(exp =>
+                <li key={exp._id} className="expense-item">
+                  {edit === exp._id ? (
+                    <form className="edit-form" onSubmit={saveEdit}>
+                      <input
+                        value={editForm.description}
+                        onChange={e=>setEditForm({...editForm,description:e.target.value})}
+                        placeholder="Description"
+                        required
+                      />
+                      <input
+                        type="number"
+                        value={editForm.amount}
+                        onChange={e=>setEditForm({...editForm,amount:+e.target.value})}
+                        placeholder="Amount"
+                        required
+                      />
+                      <input
+                        type="date"
+                        value={editForm.date}
+                        onChange={e=>setEditForm({...editForm,date:e.target.value})}
+                        required
+                      />
+                      <button type="submit" className="btn-save">Save</button>
+                      <button type="button" className="btn-cancel" onClick={()=>setEdit(null)}>Cancel</button>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="expense-info">
+                        <div className="expense-description">{exp.description}</div>
+                        <div className="expense-amount">₹{exp.amount.toFixed(2)}</div>
+                        <div className="expense-date">{new Date(exp.date).toLocaleDateString('en-IN', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}</div>
+                      </div>
+                      <div className="expense-actions">
+                        <button className="btn-edit" onClick={()=>startEdit(exp)}>Edit</button>
+                        <button className="btn-delete" onClick={()=>deleteExp(exp._id)}>Delete</button>
+                      </div>
+                    </>
+                  )}
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------- App Root -----------------
 function App() {
+  const [profileOpen, setProfileOpen] = useState(false);
+
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-        <Route path="/expense-logs" element={<PrivateRoute><ExpenseLogs /></PrivateRoute>} />
-        <Route path="/audit-logs" element={<PrivateRoute><AuditLogs /></PrivateRoute>} />
+        <Route path="/dashboard" element={<PrivateRoute><Dashboard onProfileOpen={() => setProfileOpen(true)} /></PrivateRoute>} />
+        <Route path="/logs" element={<PrivateRoute><Logs onProfileOpen={() => setProfileOpen(true)} /></PrivateRoute>} />
+        <Route path="/audit" element={<PrivateRoute><Audit onProfileOpen={() => setProfileOpen(true)} /></PrivateRoute>} />
         <Route path="/" element={<Navigate to="/login" />} />
       </Routes>
+      <Profile isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
     </BrowserRouter>
   );
 }
