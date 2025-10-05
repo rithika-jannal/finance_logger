@@ -39,6 +39,7 @@ function Profile({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState('profile');
   const [userProfile, setUserProfile] = useState({ name: '', email: '' });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [showPassword, setShowPassword] = useState({ current: false, new: false, confirm: false });
   const [message, setMessage] = useState({ text: '', type: '' });
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
@@ -254,62 +255,101 @@ function Profile({ isOpen, onClose }) {
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#2d3748' }}>
                   Current Password
                 </label>
-                <input
-                  type="password"
-                  value={passwordForm.currentPassword}
-                  onChange={e => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
-                  placeholder="Enter current password"
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '14px'
-                  }}
-                  required
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword.current ? 'text' : 'password'}
+                    value={passwordForm.currentPassword}
+                    onChange={e => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
+                    placeholder="Enter current password"
+                    style={{
+                      width: '100%',
+                      padding: '12px 40px 12px 16px',
+                      border: '2px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: '14px'
+                    }}
+                    required
+                  />
+                  <span onClick={() => setShowPassword(s => ({...s, current: !s.current}))} style={{
+                    position: 'absolute',
+                    right: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    cursor: 'pointer',
+                    fontSize: 18,
+                    color: '#888'
+                  }} title={showPassword.current ? 'Hide' : 'Show'}>
+                    {showPassword.current ? '🙈' : '👁️'}
+                  </span>
+                </div>
               </div>
 
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#2d3748' }}>
                   New Password
                 </label>
-                <input
-                  type="password"
-                  value={passwordForm.newPassword}
-                  onChange={e => setPasswordForm({...passwordForm, newPassword: e.target.value})}
-                  placeholder="Enter new password"
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '14px'
-                  }}
-                  required
-                  minLength="6"
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword.new ? 'text' : 'password'}
+                    value={passwordForm.newPassword}
+                    onChange={e => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                    placeholder="Enter new password"
+                    style={{
+                      width: '100%',
+                      padding: '12px 40px 12px 16px',
+                      border: '2px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: '14px'
+                    }}
+                    required
+                    minLength="6"
+                  />
+                  <span onClick={() => setShowPassword(s => ({...s, new: !s.new}))} style={{
+                    position: 'absolute',
+                    right: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    cursor: 'pointer',
+                    fontSize: 18,
+                    color: '#888'
+                  }} title={showPassword.new ? 'Hide' : 'Show'}>
+                    {showPassword.new ? '🙈' : '👁️'}
+                  </span>
+                </div>
               </div>
 
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#2d3748' }}>
                   Confirm New Password
                 </label>
-                <input
-                  type="password"
-                  value={passwordForm.confirmPassword}
-                  onChange={e => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
-                  placeholder="Confirm new password"
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '14px'
-                  }}
-                  required
-                  minLength="6"
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword.confirm ? 'text' : 'password'}
+                    value={passwordForm.confirmPassword}
+                    onChange={e => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                    placeholder="Confirm new password"
+                    style={{
+                      width: '100%',
+                      padding: '12px 40px 12px 16px',
+                      border: '2px solid #e2e8f0',
+                      borderRadius: '8px',
+                      fontSize: '14px'
+                    }}
+                    required
+                    minLength="6"
+                  />
+                  <span onClick={() => setShowPassword(s => ({...s, confirm: !s.confirm}))} style={{
+                    position: 'absolute',
+                    right: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    cursor: 'pointer',
+                    fontSize: 18,
+                    color: '#888'
+                  }} title={showPassword.confirm ? 'Hide' : 'Show'}>
+                    {showPassword.confirm ? '🙈' : '👁️'}
+                  </span>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
@@ -373,6 +413,7 @@ function Profile({ isOpen, onClose }) {
 // ----------------- Register -----------------
 function Register() {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
@@ -425,15 +466,29 @@ function Register() {
           </div>
           <div className="form-group">
             <label>Password</label>
-            <input
-              type="password"
-              onChange={e => setForm({ ...form, password: e.target.value })}
-              value={form.password}
-              placeholder="Create a password"
-              required
-              disabled={loading}
-              minLength="6"
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                value={form.password}
+                placeholder="Create a password"
+                required
+                disabled={loading}
+                minLength="6"
+                style={{ width: '100%', padding: '12px 40px 12px 16px' }}
+              />
+              <span onClick={() => setShowPassword(s => !s)} style={{
+                position: 'absolute',
+                right: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontSize: 18,
+                color: '#888'
+              }} title={showPassword ? 'Hide' : 'Show'}>
+                {showPassword ? '🙈' : '👁️'}
+              </span>
+            </div>
           </div>
           <button
             type="submit"
@@ -461,6 +516,7 @@ function Register() {
 // ----------------- Login -----------------
 function Login() {
   const [form, setForm] = useState({ email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -534,15 +590,29 @@ function Login() {
 
           <div className="form-group">
             <label>Password</label>
-            <input
-              name="password"
-              type="password"
-              value={form.password}
-              onChange={e => setForm({ ...form, password: e.target.value })}
-              placeholder="Enter your password"
-              required
-              disabled={loading}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                value={form.password}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                placeholder="Enter your password"
+                required
+                disabled={loading}
+                style={{ width: '100%', padding: '12px 40px 12px 16px' }}
+              />
+              <span onClick={() => setShowPassword(s => !s)} style={{
+                position: 'absolute',
+                right: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontSize: 18,
+                color: '#888'
+              }} title={showPassword ? 'Hide' : 'Show'}>
+                {showPassword ? '🙈' : '👁️'}
+              </span>
+            </div>
           </div>
 
           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px'}}>
