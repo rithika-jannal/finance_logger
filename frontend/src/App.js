@@ -412,19 +412,23 @@ function Profile({ isOpen, onClose }) {
 
 // ----------------- Register -----------------
 function Register() {
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
-  const [showPassword, setShowPassword] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "" });
+  const [showPassword, setShowPassword] = useState({ main: false, confirm: false });
   const [message, setMessage] = useState({ text: "", type: "" });
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
 
   const submit = async e => {
     e.preventDefault();
-    setLoading(true);
     setMessage({ text: "", type: "" });
-
+    if (form.password !== form.confirmPassword) {
+      setMessage({ text: "Passwords do not match", type: "error" });
+      return;
+    }
+    setLoading(true);
     try {
-      const response = await api.post("/register", form);
+      const { confirmPassword, ...submitForm } = form;
+      const response = await api.post("/register", submitForm);
       setMessage({ text: response.data.message + " Redirecting to login...", type: "success" });
       setTimeout(() => nav("/login"), 1500);
     } catch (error) {
@@ -468,16 +472,15 @@ function Register() {
             <label>Password</label>
             <div style={{ position: 'relative' }}>
               <input
-                type={showPassword ? 'text' : 'password'}
+                type={showPassword.main ? 'text' : 'password'}
                 onChange={e => setForm({ ...form, password: e.target.value })}
                 value={form.password}
                 placeholder="Create a password"
                 required
                 disabled={loading}
                 minLength="6"
-                style={{ width: '100%', padding: '12px 40px 12px 16px' }}
               />
-              <span onClick={() => setShowPassword(s => !s)} style={{
+              <span onClick={() => setShowPassword(s => ({...s, main: !s.main}))} style={{
                 position: 'absolute',
                 right: 12,
                 top: '50%',
@@ -485,8 +488,34 @@ function Register() {
                 cursor: 'pointer',
                 fontSize: 18,
                 color: '#888'
-              }} title={showPassword ? 'Hide' : 'Show'}>
-                {showPassword ? '🙈' : '👁️'}
+              }} title={showPassword.main ? 'Hide' : 'Show'}>
+                {showPassword.main ? '🙈' : '👁️'}
+              </span>
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Confirm Password</label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword.confirm ? 'text' : 'password'}
+                onChange={e => setForm({ ...form, confirmPassword: e.target.value })}
+                value={form.confirmPassword}
+                placeholder="Confirm password"
+                required
+                disabled={loading}
+                minLength="6"
+                style={{ marginBottom: 0 }}
+              />
+              <span onClick={() => setShowPassword(s => ({...s, confirm: !s.confirm}))} style={{
+                position: 'absolute',
+                right: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontSize: 18,
+                color: '#888'
+              }} title={showPassword.confirm ? 'Hide' : 'Show'}>
+                {showPassword.confirm ? '🙈' : '👁️'}
               </span>
             </div>
           </div>
@@ -498,7 +527,7 @@ function Register() {
             {loading ? '' : 'Create Account'}
           </button>
           {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
-          <div className="divider">Already have an account?</div>
+          <div className="divider"><span>Already have an account?</span></div>
           <button
             type="button"
             className="btn-secondary"
@@ -537,16 +566,6 @@ function Login() {
         localStorage.removeItem("rememberedEmail");
       }
 
-      // Log login activity to audit logs
-      try {
-        await api.post("/audit-logs", {
-          action: "login",
-          description: `User logged in successfully`
-        });
-        console.log("Login audit log created successfully");
-      } catch (auditError) {
-        console.error("Login audit log failed:", auditError);
-      }
 
       setMessage({ text: "Login successful! Redirecting...", type: "success" });
       setTimeout(() => nav("/dashboard"), 800);
@@ -652,7 +671,7 @@ function Login() {
 
           {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
 
-          <div className="divider">Don't have an account?</div>
+          <div className="divider"><span>Don't have an account?</span></div>
           <button
             type="button"
             className="btn-secondary"
@@ -948,7 +967,7 @@ function Audit({ onProfileOpen }) {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [operationCounts, setOperationCounts] = useState({ create: 0, update: 0, delete: 0 });
-  const [activeTab, setActiveTab] = useState('audit');
+  const [activeTab, setActiveTab] = useState('audit'); // 'audit' or 'history'
   const nav = useNavigate();
 
   const fetchAuditLogs = async () => {
@@ -1021,34 +1040,43 @@ function Audit({ onProfileOpen }) {
     }
   }, [auditLogs]);
 
-  // Filter audit logs by action type and date range
+  // Filter audit logs by action type and date range (for expense actions)
   const filteredLogs = auditLogs.filter(log => {
-    // Exclude login actions from display
-    if (log.action === 'login') return false;
-
-    // Filter by action type
+    if (log.action === 'login' || log.action === 'logout') return false;
     const matchesAction = filterAction === "all" || log.action === filterAction;
-
-    // Filter by date range
     const logDate = new Date(log.timestamp);
-    const logDateString = logDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-
+    const logDateString = logDate.toISOString().split('T')[0];
     const matchesFromDate = !fromDate || logDateString >= fromDate;
     const matchesToDate = !toDate || logDateString <= toDate;
-
     return matchesAction && matchesFromDate && matchesToDate;
   });
+
+  // Only login/logout actions for history tab
+  const [loginHistoryDate, setLoginHistoryDate] = useState("");
+  const loginLogoutLogs = auditLogs.filter(log =>
+    log.action === 'login' &&
+    log.description && log.description.startsWith('User logged in:') &&
+    (!loginHistoryDate || new Date(log.timestamp).toISOString().split('T')[0] === loginHistoryDate)
+  );
 
   console.log("Filtered logs:", filteredLogs); // Debug log
 
   const formatValue = (value) => {
     if (value === null || value === undefined) return "N/A";
+    // Format ISO date strings or Date objects as DD-MM-YYYY
+    const toDDMMYYYY = (d) => {
+      const dateObj = typeof d === 'string' ? new Date(d) : d;
+      if (isNaN(dateObj)) return String(d);
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const year = dateObj.getFullYear();
+      return `${day}-${month}-${year}`;
+    };
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      return toDDMMYYYY(value);
+    }
     if (typeof value === 'object' && value.date) {
-      return new Date(value.date).toLocaleDateString('en-IN', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
+      return toDDMMYYYY(value.date);
     }
     if (typeof value === 'number') return `₹${value.toFixed(2)}`;
     if (typeof value === 'string' && value.trim() === '') return "N/A";
@@ -1078,216 +1106,293 @@ function Audit({ onProfileOpen }) {
         </button>
       </div>
 
+      {/* Main Navigation Tabs (Dashboard/Logs/Audit) */}
+      <div className="tab-navigation" style={{ marginBottom: 0 }}>
+        <button
+          className={`tab-button ${window.location.pathname === '/dashboard' ? 'active' : ''}`}
+          onClick={() => nav('/dashboard')}
+        >
+          Dashboard
+        </button>
+        <button
+          className={`tab-button ${window.location.pathname === '/logs' ? 'active' : ''}`}
+          onClick={() => nav('/logs')}
+        >
+          Expense Logs
+        </button>
+        <button
+          className={`tab-button ${window.location.pathname === '/audit' ? 'active' : ''}`}
+          onClick={() => nav('/audit')}
+        >
+          Audit Logs
+        </button>
+      </div>
+
       <div className="dashboard">
-        <div className="tab-navigation">
-          <button
-            className={`tab-button ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => nav("/dashboard")}
-          >
-            Dashboard
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'logs' ? 'active' : ''}`}
-            onClick={() => nav("/logs")}
-          >
-            Expense Logs
-          </button>
+        {/* Main navigation (Dashboard/Logs/Audit) is above, so place audit/history switcher here */}
+        <div className="sub-tab-navigation" style={{ display: 'flex', gap: '12px', margin: '24px 0 16px 0', justifyContent: 'center' }}>
           <button
             className={`tab-button ${activeTab === 'audit' ? 'active' : ''}`}
-            onClick={() => nav("/audit")}
+            onClick={() => setActiveTab('audit')}
+            style={{ minWidth: 160 }}
           >
-            Audit Logs
+            Expense Audit Logs
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'history' ? 'active' : ''}`}
+            onClick={() => setActiveTab('history')}
+            style={{ minWidth: 160 }}
+          >
+            Login History
           </button>
         </div>
 
-        {/* Operation Counts Boxes */}
-        <div className="counts-overview">
-          <div className="counts-grid-overview">
-            <div className="count-card-overview create-box">
-              <div className="count-info">
-                <div className="count-number">{operationCounts.create}</div>
-                <div className="count-label">Created</div>
+        {activeTab === 'audit' && <>
+          {/* Operation Counts Boxes */}
+          <div className="counts-overview">
+            <div className="counts-grid-overview">
+              <div className="count-card-overview create-box">
+                <div className="count-info">
+                  <div className="count-number">{operationCounts.create}</div>
+                  <div className="count-label">Created</div>
+                </div>
               </div>
-            </div>
-            <div className="count-card-overview update-box">
-              <div className="count-info">
-                <div className="count-number">{operationCounts.update}</div>
-                <div className="count-label">Updated</div>
+              <div className="count-card-overview update-box">
+                <div className="count-info">
+                  <div className="count-number">{operationCounts.update}</div>
+                  <div className="count-label">Updated</div>
+                </div>
               </div>
-            </div>
-            <div className="count-card-overview delete-box">
-              <div className="count-info">
-                <div className="count-number">{operationCounts.delete}</div>
-                <div className="count-label">Deleted</div>
+              <div className="count-card-overview delete-box">
+                <div className="count-info">
+                  <div className="count-number">{operationCounts.delete}</div>
+                  <div className="count-label">Deleted</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Filter Controls */}
-        <div className="filters-section">
-          <div className="filter-group">
-            <label>Filter by Action:</label>
-            <select
-              value={filterAction}
-              onChange={e => setFilterAction(e.target.value)}
-              className="filter-select"
-            >
-              <option value="all">All Actions</option>
-              <option value="create">Created</option>
-              <option value="update">Updated</option>
-              <option value="delete">Deleted</option>
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>From Date:</label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={e => setFromDate(e.target.value)}
-              className="filter-input"
-              style={{maxWidth: "150px"}}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>To Date:</label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={e => setToDate(e.target.value)}
-              className="filter-input"
-              style={{maxWidth: "150px"}}
-            />
-          </div>
-
-          {(filterAction !== "all" || fromDate || toDate) && (
-            <button
-              className="btn-clear-filter"
-              onClick={() => {setFilterAction("all"); setFromDate(""); setToDate("");}}>
-              Clear Filters
-            </button>
-          )}
-        </div>
-
-        {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
-
-        {/* Audit Logs Table */}
-        <div className="audit-section">
-          {filteredLogs.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">Chart</div>
-              <div className="empty-state-text">
-                {auditLogs.length === 0 ? "No audit logs yet. Start adding/editing expenses to see changes here!" : "No logs match your filter."}
-              </div>
+          {/* Filter Controls */}
+          <div className="filters-section">
+            <div className="filter-group">
+              <label>Filter by Action:</label>
+              <select
+                value={filterAction}
+                onChange={e => setFilterAction(e.target.value)}
+                className="filter-select"
+              >
+                <option value="all">All Actions</option>
+                <option value="create">Created</option>
+                <option value="update">Updated</option>
+                <option value="delete">Deleted</option>
+              </select>
             </div>
-          ) : (
-            <div className="audit-table-container">
-              <table className="audit-table">
-                <thead>
-                  <tr>
-                    <th>Action</th>
-                    <th>Item</th>
-                    <th>Changed From</th>
-                    <th>Changed To</th>
-                    <th>Date</th>
-                    <th>Entry Date Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLogs.map(log => (
-                    <tr key={log._id}>
-                      <td>
-                        <span className={`action-badge ${log.action}`}>
-                          {getActionIcon(log.action)}
-                        </span>
-                      </td>
-                      <td>
-                        {log.action === 'create' ? (
-                          <div className="expense-info-cell">
-                            <div className="expense-title-cell">
-                              {log.expenseId?.description || (log.changes?.newValue && typeof log.changes.newValue === 'object' ? log.changes.newValue.description : null) || 'N/A'}
-                            </div>
-                            <div className="expense-amount-cell">
-                              {log.expenseId?.amount ? `₹${log.expenseId.amount.toFixed(2)}` : `₹${(log.changes?.oldValue && typeof log.changes.oldValue === 'object' ? log.changes.oldValue.amount : log.changes?.newValue?.amount || 0).toFixed(2)}`}
-                            </div>
-                          </div>
-                        ) : log.action === 'update' ? (
-                          <div className="field-update-info">
-                            <div className="field-name">
-                              {log.changes?.field || 'N/A'}
-                            </div>
-                            <div className="field-value">
-                              {log.changes?.field === 'amount' && log.changes?.newValue ?
-                                `₹${typeof log.changes.newValue === 'number' ? log.changes.newValue.toFixed(2) : log.changes.newValue}` :
-                                formatValue(log.changes?.newValue)}
-                            </div>
-                          </div>
-                        ) : log.action === 'delete' ? (
-                          <div className="expense-info-cell">
-                            <div className="expense-title-cell">
-                              {log.expenseId?.description ||
-                               (log.changes?.oldValue && typeof log.changes.oldValue === 'object' ? log.changes.oldValue.description : null) ||
-                               'N/A'}
-                            </div>
-                            <div className="expense-amount-cell">
-                              {log.expenseId?.amount ? `₹${log.expenseId.amount.toFixed(2)}` : `₹${(log.changes?.oldValue && typeof log.changes.oldValue === 'object' ? log.changes.oldValue.amount : null) || 0}.00`}
-                            </div>
-                          </div>
-                        ) : (
-                          log.changes?.field || 'N/A'
-                        )}
-                      </td>
-                      <td>
-                        <span className="change-value old-value">
-                          {(log.action === 'create' || log.action === 'login') ? '-' :
-                           log.changes?.field === 'all' ?
-                             formatValue(log.changes?.oldValue) :
-                             log.changes?.oldValue ?
-                               (typeof log.changes.oldValue === 'object' ?
-                                 `${log.changes.field}: ${formatValue(log.changes.oldValue)}` :
-                                 formatValue(log.changes.oldValue)) :
-                               'N/A'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="change-value new-value">
-                          {(log.action === 'create' || log.action === 'login') ? '-' :
-                           log.changes?.field === 'all' ?
-                             formatValue(log.changes?.newValue) :
-                             log.changes?.newValue ?
-                               (typeof log.changes.newValue === 'object' ?
-                                 `${log.changes.field}: ${formatValue(log.changes.newValue)}` :
-                                 formatValue(log.changes.newValue)) :
-                               'N/A'}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="timestamp">
-                          {new Date(log.timestamp).toLocaleDateString('en-IN', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="timestamp-time">
-                          {new Date(log.timestamp).toLocaleTimeString('en-IN', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit'
-                          })}
-                        </div>
-                      </td>
+
+            <div className="filter-group">
+              <label>From Date:</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={e => setFromDate(e.target.value)}
+                className="filter-input"
+                style={{maxWidth: "150px"}}
+              />
+            </div>
+
+            <div className="filter-group">
+              <label>To Date:</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={e => setToDate(e.target.value)}
+                className="filter-input"
+                style={{maxWidth: "150px"}}
+              />
+            </div>
+
+            {(filterAction !== "all" || fromDate || toDate) && (
+              <button
+                className="btn-clear-filter"
+                onClick={() => {setFilterAction("all"); setFromDate(""); setToDate("");}}>
+                Clear Filters
+              </button>
+            )}
+          </div>
+
+          {message.text && <div className={`message ${message.type}`}>{message.text}</div>}
+
+          {/* Audit Logs Table */}
+          <div className="audit-section">
+            {filteredLogs.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">Chart</div>
+                <div className="empty-state-text">
+                  {auditLogs.length === 0 ? "No audit logs yet. Start adding/editing expenses to see changes here!" : "No logs match your filter."}
+                </div>
+              </div>
+            ) : (
+              <div className="audit-table-container">
+                <table className="audit-table">
+                  <thead>
+                    <tr>
+                      <th>Action</th>
+                      <th>Item</th>
+                      <th>Changed From</th>
+                      <th>Changed To</th>
+                      <th>Date</th>
+                      <th>Entry Date Time</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredLogs.map(log => (
+                      <tr key={log._id}>
+                        <td>
+                          <span className={`action-badge ${log.action}`}>
+                            {getActionIcon(log.action)}
+                          </span>
+                        </td>
+                        <td>
+                          {log.action === 'create' ? (
+                            <div className="expense-info-cell">
+                              <div className="expense-title-cell">
+                                {log.expenseId?.description || (log.changes?.newValue && typeof log.changes.newValue === 'object' ? log.changes.newValue.description : null) || 'N/A'}
+                              </div>
+                              <div className="expense-amount-cell">
+                                {log.expenseId?.amount ? `₹${log.expenseId.amount.toFixed(2)}` : `₹${(log.changes?.oldValue && typeof log.changes.oldValue === 'object' ? log.changes.oldValue.amount : log.changes?.newValue?.amount || 0).toFixed(2)}`}
+                              </div>
+                            </div>
+                          ) : log.action === 'update' ? (
+                            <div className="field-update-info">
+                              <div className="field-name">
+                                {log.changes?.field || 'N/A'}
+                              </div>
+                              <div className="field-value">
+                                {log.changes?.field === 'amount' && log.changes?.newValue ?
+                                  `₹${typeof log.changes.newValue === 'number' ? log.changes.newValue.toFixed(2) : log.changes.newValue}` :
+                                  formatValue(log.changes?.newValue)}
+                              </div>
+                            </div>
+                          ) : log.action === 'delete' ? (
+                            <div className="expense-info-cell">
+                              <div className="expense-title-cell">
+                                {log.expenseId?.description ||
+                                 (log.changes?.oldValue && typeof log.changes.oldValue === 'object' ? log.changes.oldValue.description : null) ||
+                                 'N/A'}
+                              </div>
+                              <div className="expense-amount-cell">
+                                {log.expenseId?.amount ? `₹${log.expenseId.amount.toFixed(2)}` : `₹${(log.changes?.oldValue && typeof log.changes.oldValue === 'object' ? log.changes.oldValue.amount : null) || 0}.00`}
+                              </div>
+                            </div>
+                          ) : (
+                            log.changes?.field || 'N/A'
+                          )}
+                        </td>
+                        <td>
+                          <span className="change-value old-value">
+                            {(log.action === 'create' || log.action === 'login') ? '-' :
+                             log.changes?.field === 'all' ?
+                               formatValue(log.changes?.oldValue) :
+                               log.changes?.oldValue ?
+                                 (typeof log.changes.oldValue === 'object' ?
+                                   `${log.changes.field}: ${formatValue(log.changes.oldValue)}` :
+                                   formatValue(log.changes.oldValue)) :
+                                 'N/A'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="change-value new-value">
+                            {(log.action === 'create' || log.action === 'login') ? '-' :
+                             log.changes?.field === 'all' ?
+                               formatValue(log.changes?.newValue) :
+                               log.changes?.newValue ?
+                                 (typeof log.changes.newValue === 'object' ?
+                                   `${log.changes.field}: ${formatValue(log.changes.newValue)}` :
+                                   formatValue(log.changes.newValue)) :
+                                 'N/A'}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="timestamp">
+                            {new Date(log.timestamp).toLocaleDateString('en-IN', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="timestamp-time">
+                            {new Date(log.timestamp).toLocaleTimeString('en-IN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit'
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>}
+
+        {activeTab === 'history' && <>
+          <div className="audit-section">
+            <h3 style={{margin: '16px 0'}}>Login History</h3>
+            <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <label htmlFor="login-history-date" style={{ fontWeight: 500 }}>Filter by Date:</label>
+              <input
+                id="login-history-date"
+                type="date"
+                value={loginHistoryDate}
+                onChange={e => setLoginHistoryDate(e.target.value)}
+                style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ccc' }}
+              />
+              {loginHistoryDate && (
+                <button onClick={() => setLoginHistoryDate("")} style={{ marginLeft: 8, padding: '6px 12px', borderRadius: 6, border: 'none', background: '#eee', cursor: 'pointer' }}>Clear</button>
+              )}
             </div>
-          )}
-        </div>
+            {loginLogoutLogs.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">👁️</div>
+                <div className="empty-state-text">
+                  No login or logout history yet.
+                </div>
+              </div>
+            ) : (
+              <div className="audit-table-container">
+                <table className="audit-table">
+                  <thead>
+                    <tr>
+                      <th>Action</th>
+                      <th>Description</th>
+                      <th>Date</th>
+                      <th>Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loginLogoutLogs.map(log => (
+                      <tr key={log._id}>
+                        <td>
+                          <span className={`action-badge ${log.action}`}>{log.action.toUpperCase()}</span>
+                        </td>
+                        <td>{log.description}</td>
+                        <td>{new Date(log.timestamp).toLocaleDateString('en-IN', {
+                          year: 'numeric', month: 'short', day: 'numeric'
+                        })}</td>
+                        <td>{new Date(log.timestamp).toLocaleTimeString('en-IN', {
+                          hour: '2-digit', minute: '2-digit', second: '2-digit'
+                        })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>}
       </div>
     </div>
   );
