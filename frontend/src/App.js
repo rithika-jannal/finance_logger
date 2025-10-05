@@ -860,14 +860,26 @@ function Dashboard({ onProfileOpen }) {
             <h3>� Spending Trend (Last 7 Days)</h3>
             <Bar
               data={{
-                labels: Object.keys(summary),
-                datasets: [{
-                  label: "Daily Spending (₹)",
-                  data: Object.values(summary),
-                  backgroundColor: "#667eea",
-                  barPercentage: 0.4,
-                  categoryPercentage: 0.5
-                }]
+                // Sort dates oldest to newest and format as dd-mm-yyyy
+                ...(() => {
+                  const dateKeys = Object.keys(summary).sort((a, b) => new Date(a) - new Date(b));
+                  return {
+                    labels: dateKeys.map(date => {
+                      const d = new Date(date);
+                      const day = String(d.getDate()).padStart(2, '0');
+                      const month = String(d.getMonth() + 1).padStart(2, '0');
+                      const year = d.getFullYear();
+                      return `${day}-${month}-${year}`;
+                    }),
+                    datasets: [{
+                      label: "Daily Spending (₹)",
+                      data: dateKeys.map(date => summary[date]),
+                      backgroundColor: "#667eea",
+                      barPercentage: 0.4,
+                      categoryPercentage: 0.5
+                    }]
+                  };
+                })()
               }}
               options={{
                 responsive: true,
