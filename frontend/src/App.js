@@ -857,7 +857,7 @@ function Dashboard({ onProfileOpen }) {
 
         {Object.keys(summary).length > 0 && (
           <div className="chart-section">
-            <h3>� Spending Trend (Last 7 Days)</h3>
+            <h3>Spending Trend</h3>
             <Bar
               data={{
                 // Sort dates oldest to newest and format as dd-mm-yyyy
