@@ -1,3 +1,11 @@
+// --- Utility: Remove all 'User logged in successfully' audit logs ---
+if (process.env.REMOVE_LOGIN_SUCCESS_LOGS === '1') {
+  (async () => {
+    const result = await AuditLog.deleteMany({ action: 'login', description: 'User logged in successfully' });
+    console.log(`Removed ${result.deletedCount} 'User logged in successfully' audit logs.`);
+    process.exit(0);
+  })();
+}
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -44,7 +52,7 @@ const ExpenseSchema = new mongoose.Schema({
 const AuditLogSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   expenseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Expense' },
-  action: { type: String, enum: ['create', 'update', 'delete', 'login'], required: true },
+  action: { type: String, enum: ['create', 'update', 'delete', 'login', 'logout'], required: true },
   changes: {
     field: { type: String },
     oldValue: { type: mongoose.Schema.Types.Mixed },
@@ -61,6 +69,21 @@ const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
 
 // ✅ Express App Setup
 const app = express();
+
+// ✅ Logout Endpoint (audited)
+app.post('/api/logout', auth, async (req, res) => {
+  try {
+    const auditLog = new AuditLog({
+      user: req.user._id,
+      action: 'logout',
+      description: `User logged out: ${req.user.email || req.user._id}`
+    });
+    await auditLog.save();
+    res.json({ message: 'Logged out and audited' });
+  } catch (error) {
+    res.status(500).json({ message: 'Logout audit failed' });
+  }
+});
 app.use(cors());
 app.use(express.json());
 
